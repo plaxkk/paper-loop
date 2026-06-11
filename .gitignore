@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtualenv
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Data files (keep config, skip DB and runtime)
+data/mp_analytics.db
+data/mp_raw/
+data/mp_collector.log
+data/mp_analytics_latest.json
+data/weekly_strategy.json
+data/reports/
+data/reviews/
+data/articles/
+data/covers/
+data/images/
+
+# State
+state/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage

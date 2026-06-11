@@ -1,0 +1,16 @@
+{
+  "_comment": "论文→公众号 流水线配置。复制此文件到 ~/.paper-to-wechat/config.json 并填入真实值。",
+  "wechat_appid": "YOUR_APPID",
+  "wechat_appsecret": "YOUR_APPSECRET",
+  "data_dir": "~/repos/paper-to-wechat-pipeline/data",
+  "collector_port": 9876,
+  "articles_dir": "data/articles",
+  "covers_dir": "data/covers",
+  "reviews_dir": "data/reviews",
+  "reports_dir": "data/reports",
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
+    "api_key_env": "DEEPSEEK_API_KEY"
+  }
+}
