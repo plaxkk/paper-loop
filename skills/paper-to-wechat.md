@@ -1330,4 +1330,39 @@ json.dump(log, open('published_log.json','w'), ensure_ascii=False, indent=2)
     - **用工程类比降低理解成本**: figcaption 和引导文字用工程术语类比（如 GPT-1的任务转换 = "统一的API接口，不同业务只调整入参格式"；GPT-3的few-shot = "给新同事看几个示例就能照着做"）
     - **移动端可读性**: 微信文章主要在手机上阅读（900px宽），避免选细节太多、字太小的图。如果原图是多面板图，考虑裁剪到最核心的1-2个面板
     - **图前加引导句**: 在 `<figure>` 标签前加一句 `<p>` 引导读者看图，格式："下面这张图..."或"看这张图，注意..."，帮助读者建立预期再去看图
-21. **编辑文章 JSON 的坑——不要用 patch 工具**: 文章 JSON 的内容字段里包含大量 HTML 转义字符（`\\"`、`\\n` 等），`patch` 工具的 `old_string` 匹配极容易因转义差异而失败（P12 曾因此修了两次才成功）。**修改文章内容时，一律用 `execute_code` 写 Python 脚本**：先 `json.load()` 读入，用 `str.replace()` 做替换，再 `json.dump()` 写回。这样完全绕开转义问题。
+21. **编辑文章 JSON 的坑——不要用 patch 工具**: 文章 JSON 的内容字段里包含大量 HTML 转义字符（`\\\"`、`\n` 等），`patch` 工具的 `old_string` 匹配极容易因转义差异而失败（P12 曾因此修了两次才成功）。**修改文章内容时，一律用 `execute_code` 写 Python 脚本**：先 `json.load()` 读入，用 `str.replace()` 做替换，再 `json.dump()` 写回。这样完全绕开转义问题。
+
+
+## 传播闭环与多平台分发
+
+写完文章后的传播操作详见 companion skill: `skills/distribution-loop.md`
+
+三件事（每篇强制执行）:
+1. **截图级判断句** — 深色背景加粗，放在核心洞察后
+2. **内链网络** — 文首系列标记 + 文末上一篇/下一篇导航
+3. **多平台自动分发** — `python -m pipeline.run distribute-publish`
+
+自动化命令:
+```bash
+python -m pipeline.run distribute-login          # 首次: 登录知乎/掘金
+python -m pipeline.run distribute-adapt <file>   # 预览各平台版本
+python -m pipeline.run distribute-publish <file> --dry-run  # 演练
+python -m pipeline.run distribute-publish <file> # 正式分发
+```
+
+模块: `modules/distribution/`（adapters + orchestrator + platforms/）
+
+
+## 迭代反馈机制
+
+此 skill 与 Hermes skill `paper-distribution-loop` 保持同步。
+优化验证流程:
+
+1. kk 使用中发现的问题 / 我发现的 bug → 在 Hermes skill 中记录并修复
+2. 修复的代码直接进入 repo（`modules/distribution/` 是 repo 的一部分）
+3. 经过验证的坑和最佳实践 → 同步到此 skill 的「常见问题」和「已知限制」
+
+原则:
+- Hermes skill 是「个人使用版」（含 kk 特定路径/偏好）
+- Repo skill 是「开源版」（含通用流程，不含个人信息）
+- 两个版本保持双向同步: Hermes 验证过的通用知识 → 回流到 repo

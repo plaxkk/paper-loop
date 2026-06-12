@@ -13,6 +13,9 @@ Commands:
   review-all        审稿所有文章
   render-formula    渲染文章公式
   extract-figures   提取论文图片
+  distribute-login    检查 wechatsync 状态
+  distribute-publish <file> [--dry-run]  通过 wechatsync 多平台分发
+  distribute-adapt <file>  生成多平台适配版本
 """
 from __future__ import annotations
 
@@ -97,6 +100,62 @@ def cmd_extract_figures(args):
     print(f"[pipeline] 图片提取完成: {paper_id}")
 
 
+def cmd_distribute_login(args):
+    """Check wechatsync setup status (replaces old Playwright login)."""
+    from modules.distribution.orchestrator import check_wechatsync
+    
+    print("[pipeline] 检查 wechatsync 状态...")
+    if check_wechatsync():
+        print("✓ wechatsync CLI 已安装")
+        print()
+        print("请确认以下前置条件:")
+        print("  1. Chrome 扩展「文章同步助手」已安装并启用")
+        print("     https://chromewebstore.google.com/detail/文章同步助手/hchobocdmclopcbnibdnoafilagadion")
+        print("  2. 在扩展设置中已启用「MCP 连接」")
+        print("  3. 已在 Chrome 中登录知乎、掘金等目标平台")
+    else:
+        print("✗ wechatsync CLI 未安装")
+        print("  运行: npm install -g @wechatsync/cli")
+
+
+def cmd_distribute_adapt(args):
+    """Generate platform-specific adapted versions of an article."""
+    from modules.distribution.adapters import adapt_for_all_platforms
+    result = adapt_for_all_platforms(args.file,
+        output_dir=str(Path(args.file).parent.parent / "distributed"))
+    print(f"[pipeline] 已生成多平台版本:")
+    for platform in ["zhihu", "juejin", "csdn"]:
+        length = len(result.get(platform, ""))
+        print(f"  {platform}: {length} 字符")
+
+
+def cmd_distribute_publish(args):
+    """Publish article via wechatsync CLI (replaces old Playwright)."""
+    from modules.distribution.orchestrator import publish_to_all
+    
+    platforms = []
+    if hasattr(args, 'zhihu') and args.zhihu:
+        platforms.append("zhihu")
+    if hasattr(args, 'juejin') and args.juejin:
+        platforms.append("juejin")
+    if not platforms:
+        platforms = ["zhihu", "juejin", "csdn", "weixin"]
+    
+    dry_run = hasattr(args, 'dry_run') and args.dry_run
+    
+    r = publish_to_all(
+        args.file,
+        dry_run=dry_run,
+        platforms=platforms,
+    )
+    
+    if not r["success"] and "超时" in r.get("error", ""):
+        print("\n[pipeline] wechatsync 连接超时 — 请确认:")
+        print("  1. Chrome 浏览器正在运行")
+        print("  2. 「文章同步助手」扩展已安装并启用")
+        print("  3. 扩展设置中「MCP 连接」已开启")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="论文→公众号 全自动流水线",
@@ -137,6 +196,16 @@ def main(argv=None):
     p_fig = sub.add_parser("extract-figures", help="提取论文图片")
     p_fig.add_argument("paper", help="论文ID (如 P14)")
 
+    # Distribution (powered by wechatsync Chrome extension)
+    sub.add_parser("distribute-login", help="检查 wechatsync 状态")
+
+    p_da = sub.add_parser("distribute-adapt", help="生成多平台适配版本")
+    p_da.add_argument("file", help="文章 JSON 文件路径")
+
+    p_dp = sub.add_parser("distribute-publish", help="通过 wechatsync 分发")
+    p_dp.add_argument("file", help="文章 JSON 文件路径")
+    p_dp.add_argument("--dry-run", action="store_true", help="演练模式")
+
     args = parser.parse_args(argv)
 
     commands = {
@@ -149,6 +218,9 @@ def main(argv=None):
         "review-all": cmd_review_all,
         "render-formula": cmd_render_formula,
         "extract-figures": cmd_extract_figures,
+        "distribute-login": cmd_distribute_login,
+        "distribute-adapt": cmd_distribute_adapt,
+        "distribute-publish": cmd_distribute_publish,
     }
 
     if args.command in commands:
