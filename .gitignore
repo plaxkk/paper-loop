@@ -25,6 +25,21 @@ data/reviews/
 data/articles/
 data/covers/
 data/images/
+data/columns/
+data/daily_digest/
+data/distributed/
+data/config.json
+data/token_cache.json
+data/published_log.json
+data/thumb_ids.json
+data/thumb_media_id.txt
+data/scripts/
+data/email_config.json
+
+# Private content (not part of the open-source tool)
+study-plan.md
+progress.md
+ai-fundamentals/
 
 # State
 state/

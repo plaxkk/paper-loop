@@ -4,7 +4,7 @@
 - 调用LLM进行审稿对比
 - 输出审查报告，自动修正事实性错误
 
-Config fallback: repo data/config.json -> ~/hermes-data/llm-paper-plan/wechat/config.json
+Config: ~/repos/paper-loop/data/config.json
 """
 
 import json

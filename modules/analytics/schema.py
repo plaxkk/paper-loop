@@ -195,29 +195,30 @@ def parse_content_analysis(raw_file: Path) -> dict:
                 })
 
         # --- Per-article data ---
+        collect_date = datetime.now().strftime("%Y-%m-%d")  # 采集日期，用于差分追踪
         for article in body.get("article_list", []):
             if not isinstance(article, dict):
                 continue
             msg_id = str(article.get("msg_id", ""))
             title = article.get("title", "")
-            ref_date = norm_date(article.get("ref_date", ""))
+            publish_date = norm_date(article.get("ref_date", ""))  # 发布日期
             item_idx = article.get("item_idx", 1)
 
             if not msg_id:
                 continue
 
-            # Article record
+            # Article record (use publish_date for article metadata)
             result["articles"].append({
                 "msg_id": msg_id,
                 "item_idx": item_idx,
                 "title": title,
-                "publish_date": ref_date,
+                "publish_date": publish_date,
             })
 
-            # Daily metrics
+            # Daily metrics — use COLLECTION date so each snapshot creates a new row
             result["daily_metrics"].append({
                 "msg_id": msg_id,
-                "ref_date": ref_date,
+                "ref_date": collect_date,
                 "total_read_uv": int(article.get("total_read_uv", 0) or 0),
                 "read_uv_ratio": float(article.get("read_uv_ratio", 0) or 0),
                 "share_uv": int(article.get("share_uv", 0) or 0),

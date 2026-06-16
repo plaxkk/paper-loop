@@ -2,8 +2,7 @@
 微信公众号发布模块 — 订阅号专用：创建草稿到草稿箱。
 - 健壮的token缓存和自动刷新
 - 完善的错误处理和日志
-- Config: ~/repos/paper-to-wechat-pipeline/data/config.json
-          fallback -> ~/hermes-data/llm-paper-plan/wechat/config.json
+- Config: ~/repos/paper-loop/data/config.json
 """
 
 import json
@@ -25,9 +24,8 @@ DATA_DIR = _REPO_ROOT / "data"
 ARTICLES_DIR = DATA_DIR / "articles"
 DEFAULT_COVERS_DIR = DATA_DIR / "covers"
 
-# Config paths (repo first, then fallback to old hermes-data location)
+# Config path
 CONFIG_PATH = DATA_DIR / "config.json"
-FALLBACK_CONFIG_PATH = Path.home() / "hermes-data" / "llm-paper-plan" / "wechat" / "config.json"
 
 TOKEN_CACHE = DATA_DIR / "token_cache.json"
 ARTICLE_LOG = DATA_DIR / "published_log.json"
