@@ -116,6 +116,15 @@ class CollectorHandler(BaseHTTPRequestHandler):
                 log(f"  → user parsed: {counts}")
             except Exception as e:
                 log(f"  → user parse failed: {e}")
+        elif page_type == "published_records":
+            try:
+                from .schema import init_db, import_published_records
+                init_db()
+                data = json.loads(raw_file.read_text(encoding="utf-8"))
+                added, updated = import_published_records(data)
+                log(f"  → published records: {added} new, {updated} updated")
+            except Exception as e:
+                log(f"  → published records parse failed: {e}")
 
     def log_message(self, format, *args):
         pass  # suppress default logging

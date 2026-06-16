@@ -54,12 +54,14 @@ def generate_strategy() -> dict:
         strategy["insights"].append("暂无足够数据，建议继续积累至少7天数据。")
         return strategy
 
-    # 计算日均阅读量
+    # 计算日均阅读量 + 30天窗口标记
+    cutoff_30d = today - timedelta(days=30)
     for a in articles_raw:
         pub_date = datetime.strptime(a["publish_date"], "%Y-%m-%d").date()
         days_alive = max((today - pub_date).days, 1)
         a["days_alive"] = days_alive
         a["reads_per_day"] = round((a["total_read_uv"] or 0) / days_alive, 1)
+        a["in_30d_window"] = pub_date >= cutoff_30d  # 是否在追踪窗口内
 
     # 差分活跃度：对比最近两次采集
     for a in articles_raw:
@@ -274,7 +276,19 @@ def generate_strategy() -> dict:
             "total_reads": a["total_read_uv"],
             "days_alive": a["days_alive"],
             "active": a["is_active"],
+            "frozen": not a["in_30d_window"],
             "recent_delta": a["recent_delta"],
+        })
+
+    # 30天窗口统计
+    in_window = sum(1 for a in articles_raw if a["in_30d_window"])
+    frozen_count = len(articles_raw) - in_window
+    if frozen_count > 0:
+        insights.append({
+            "type": "frozen_articles",
+            "title": f"📦 已冻结: {frozen_count} 篇文章（发布超过 30 天）",
+            "detail": f"这些文章的数据为导入快照，不再每日追踪增量。近 30 天活跃文章: {in_window} 篇。",
+            "action": "冻结文章的总阅读量保留在排名中作为参考，但不再消耗采集资源。",
         })
 
     strategy["raw_stats"] = {
@@ -323,10 +337,22 @@ def print_strategy():
         print(f"  • {t}")
     print()
     print("## 📊 排名对比（日均 vs 总阅读）")
-    print(f"  {'排名':<4} {'文章':<30} {'日均':>6} {'总阅读':>6} {'天数':>4}")
+    print(f"  {'':<3} {'文章':<30} {'日均':>6} {'总阅读':>6} {'天数':>4} {'状态':<6}")
+    print(f"  {'─'*3} {'─'*30} {'─'*6} {'─'*6} {'─'*4} {'─'*6}")
     for r in s["raw_stats"]["ranking"]:
-        mark = "🔥" if r["active"] else ("?" if r["active"] is None else " ")
-        print(f"  {mark} {r['rank_rpd']:<2}  {r['title']:<30} {r['reads_per_day']:>5.1f} {r['total_reads']:>6} {r['days_alive']:>4}")
+        if r.get("frozen"):
+            mark = "📦"
+            status = "冻结"
+        elif r["active"] is True:
+            mark = "🔥"
+            status = "活跃"
+        elif r["active"] is None:
+            mark = " ?"
+            status = "待确认"
+        else:
+            mark = "  "
+            status = ""
+        print(f"  {mark:<3} {r['title']:<30} {r['reads_per_day']:>5.1f} {r['total_reads']:>6} {r['days_alive']:>4} {status:<6}")
     print()
     print("## 📊 原始数据速览")
     for k, v in s["raw_stats"].items():

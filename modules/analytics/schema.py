@@ -466,3 +466,85 @@ if __name__ == "__main__":
 
     s = stats()
     print(f"\nDB stats: {s}")
+
+
+def import_published_records(data: dict) -> tuple[int, int]:
+    """
+    Import articles from the published records page scan.
+    Called when collector receives page_type='published_records'.
+    Extracts msg_id, title, publish_date, total_reads from the scan data.
+    Returns (new_count, updated_count).
+    """
+    conn = sqlite3.connect(str(DB_PATH))
+    cur = conn.cursor()
+    init_db()
+
+    article_list = []
+    for resp in data.get("api_responses", []):
+        body = resp.get("body", {})
+        items = body.get("article_list", [])
+        for item in items:
+            if isinstance(item, dict):
+                article_list.append(item)
+
+    new_count, updated_count = 0, 0
+    for a in article_list:
+        msg_id = str(a.get("msg_id", ""))
+        title = str(a.get("title", ""))
+        publish_date = a.get("publish_date", "")
+        total_reads = int(a.get("total_reads", 0) or 0)
+
+        if not msg_id and not title:
+            continue
+
+        # Normalize publish_date
+        if publish_date:
+            publish_date = norm_date(publish_date)
+
+        # Try to find by msg_id first, then by title+publish_date
+        existing_id = None
+        if msg_id:
+            cur.execute("SELECT id FROM articles WHERE msg_id=?", (msg_id,))
+            row = cur.fetchone()
+            if row:
+                existing_id = row[0]
+
+        if not existing_id and title and publish_date:
+            cur.execute("SELECT id FROM articles WHERE title=? AND publish_date=?",
+                       (title, publish_date))
+            row = cur.fetchone()
+            if row:
+                existing_id = row[0]
+
+        if existing_id:
+            # Update existing
+            cur.execute("""
+                UPDATE articles SET 
+                    title=COALESCE(?, title),
+                    publish_date=COALESCE(?, publish_date),
+                    last_updated=datetime('now','localtime')
+                WHERE id=?
+            """, (title or None, publish_date or None, existing_id))
+            updated_count += 1
+        else:
+            # Insert new
+            cur.execute("""
+                INSERT INTO articles (msg_id, item_idx, title, publish_date)
+                VALUES (?, 1, ?, ?)
+            """, (msg_id or f"unknown_{title[:20]}", title, publish_date))
+            new_count += 1
+
+        # Store the total_reads as a one-time snapshot (ref_date = import date)
+        if existing_id or new_count > 0:
+            aid = existing_id or cur.lastrowid
+            if aid and total_reads > 0:
+                import_date = datetime.now().strftime("%Y-%m-%d")
+                cur.execute("""
+                    INSERT OR REPLACE INTO article_daily_metrics
+                    (article_id, ref_date, total_read_uv, read_uv_ratio, share_uv, captured_at)
+                    VALUES (?, ?, ?, 0, 0, datetime('now','localtime'))
+                """, (aid, import_date, total_reads))
+
+    conn.commit()
+    conn.close()
+    return new_count, updated_count
