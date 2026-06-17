@@ -1,4 +1,4 @@
-.PHONY: install test collector-start collector-stop profile strategy publish clean
+.PHONY: install test collector-start collector-stop collector-status collector-acceptance-report collector-inspect collector-script-info collector-self-test collector-title-fingerprint collector-validate collector-validate-published collector-watch-published profile strategy publish clean
 
 # ── Install ──────────────────────────────────────────────────────────────────
 install:
@@ -10,15 +10,41 @@ test:
 
 # ── Collector ────────────────────────────────────────────────────────────────
 collector-start:
-	python -m pipeline run collect &
+	python -m pipeline.run collector-start --daemon
 
 collector-stop:
-	@PID=$$(pgrep -f "pipeline run collect" 2>/dev/null); \
-	if [ -n "$$PID" ]; then \
-		kill $$PID && echo "Collector stopped (PID: $$PID)"; \
-	else \
-		echo "Collector not running"; \
+	python -m pipeline.run collector-stop
+
+collector-status:
+	python -m pipeline.run collector-status
+
+collector-acceptance-report:
+	python -m pipeline.run collector-acceptance-report
+
+collector-inspect:
+	python -m pipeline.run collector-inspect --page-type all
+
+collector-script-info:
+	python -m pipeline.run collector-script-info
+
+collector-self-test:
+	python -m pipeline.run collector-self-test
+
+collector-title-fingerprint:
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make collector-title-fingerprint FILE=<expected_titles.txt>"; \
+		exit 1; \
 	fi
+	python -m pipeline.run collector-title-fingerprint "$(FILE)"
+
+collector-validate:
+	python -m pipeline.run collector-validate
+
+collector-validate-published:
+	python -m pipeline.run collector-validate --strict-diagnostic --expected-diagnostic-kinds published_records_page_loaded,published_records_scan_started --strict-preview --strict-latest --strict-session --expected-preview-count 10 --expected-published-count 22 --expected-page-counts 10,10,2 --max-raw-age-seconds 600
+
+collector-watch-published:
+	python -m pipeline.run collector-validate --strict-diagnostic --expected-diagnostic-kinds published_records_page_loaded,published_records_scan_started --strict-preview --strict-latest --strict-session --expected-preview-count 10 --expected-published-count 22 --expected-page-counts 10,10,2 --max-raw-age-seconds 600 --watch-seconds 120 --poll-interval 2
 
 # ── Reports & Strategy ───────────────────────────────────────────────────────
 profile:

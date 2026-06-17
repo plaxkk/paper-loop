@@ -54,14 +54,25 @@ def generate_strategy() -> dict:
         strategy["insights"].append("暂无足够数据，建议继续积累至少7天数据。")
         return strategy
 
-    # 计算日均阅读量 + 30天窗口标记
+    # 计算日均阅读量 + 30天窗口标记；DOM 兜底记录可能没有发布日期，不能参与时间归一化排名。
     cutoff_30d = today - timedelta(days=30)
+    articles = []
     for a in articles_raw:
-        pub_date = datetime.strptime(a["publish_date"], "%Y-%m-%d").date()
+        try:
+            pub_date = datetime.strptime(a["publish_date"] or "", "%Y-%m-%d").date()
+        except ValueError:
+            continue
         days_alive = max((today - pub_date).days, 1)
         a["days_alive"] = days_alive
         a["reads_per_day"] = round((a["total_read_uv"] or 0) / days_alive, 1)
         a["in_30d_window"] = pub_date >= cutoff_30d  # 是否在追踪窗口内
+        articles.append(a)
+
+    if not articles:
+        conn.close()
+        strategy["insights"].append("已采集文章缺少发布日期，暂时无法生成日均阅读策略。")
+        return strategy
+    articles_raw = articles
 
     # 差分活跃度：对比最近两次采集
     for a in articles_raw:

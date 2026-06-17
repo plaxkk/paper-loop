@@ -20,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data" / "mp_raw"
 LATEST_FILE = BASE_DIR / "data" / "mp_analytics_latest.json"
 LOG_FILE = BASE_DIR / "data" / "mp_collector.log"
+USERSCRIPT_FILE = BASE_DIR / "modules" / "browser" / "mp_analytics_injector.user.js"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -36,12 +37,40 @@ def log(msg: str) -> None:
 
 
 class CollectorHandler(BaseHTTPRequestHandler):
-    def do_OPTIONS(self):
-        self.send_response(200)
+    def send_cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_cors_headers()
         self.end_headers()
+
+    def do_GET(self):
+        path = urlparse(self.path).path
+        if path != "/mp_analytics_injector.user.js":
+            self.send_response(404)
+            self.send_cors_headers()
+            self.end_headers()
+            return
+
+        if not USERSCRIPT_FILE.exists():
+            self.send_response(404)
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(b'// userscript not found')
+            return
+
+        script = USERSCRIPT_FILE.read_text(encoding="utf-8")
+        body = script.encode("utf-8")
+        self.send_response(200)
+        self.send_cors_headers()
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -57,12 +86,13 @@ class CollectorHandler(BaseHTTPRequestHandler):
             payload = json.loads(body)
         except json.JSONDecodeError:
             self.send_response(400)
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(b'{"error":"invalid json"}')
             return
 
         # Save raw file with timestamp
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         page_type = payload.get("page_type", "unknown")
         raw_file = DATA_DIR / f"{ts}_{page_type}.json"
         with open(raw_file, "w", encoding="utf-8") as f:
@@ -92,7 +122,7 @@ class CollectorHandler(BaseHTTPRequestHandler):
         log(f"Received {page_type} — saved {raw_file.name} ({content_length} bytes)")
 
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_cors_headers()
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps({"status": "ok", "file": str(raw_file)}).encode())

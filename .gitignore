@@ -16,8 +16,11 @@ venv/
 
 # Data files (keep config, skip DB and runtime)
 data/mp_analytics.db
+data/*.db-journal
 data/mp_raw/
 data/mp_collector.log
+data/mp_collector.pid
+data/mp_collector.stdout.log
 data/mp_analytics_latest.json
 data/weekly_strategy.json
 data/reports/

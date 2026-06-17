@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import sqlite3
 from datetime import datetime
@@ -16,16 +17,19 @@ from typing import Any
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = BASE_DIR / "data" / "mp_analytics.db"
 RAW_DIR = BASE_DIR / "data" / "mp_raw"
+SQLITE_TIMEOUT_SECONDS = 30
+SQLITE_BUSY_TIMEOUT_MS = SQLITE_TIMEOUT_SECONDS * 1000
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS articles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    msg_id TEXT NOT NULL UNIQUE,
-    item_idx INTEGER DEFAULT 1,
+    msg_id TEXT NOT NULL,
+    item_idx INTEGER NOT NULL DEFAULT 1,
     title TEXT NOT NULL,
     publish_date TEXT,
     first_seen TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-    last_updated TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    last_updated TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE(msg_id, item_idx)
 );
 
 CREATE TABLE IF NOT EXISTS article_daily_metrics (
@@ -115,13 +119,213 @@ CREATE INDEX IF NOT EXISTS idx_user_daily_date ON user_daily_metrics(ref_date);
 """
 
 
+def connect_db(path: Path | None = None) -> sqlite3.Connection:
+    conn = sqlite3.connect(str(path or DB_PATH), timeout=SQLITE_TIMEOUT_SECONDS)
+    conn.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+    return conn
+
+
 def init_db() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.executescript(SCHEMA_SQL)
-    conn.commit()
-    conn.close()
+    conn = connect_db()
+    try:
+        conn.executescript(SCHEMA_SQL)
+        migrate_article_identity(conn)
+        repair_article_foreign_keys(conn)
+        migrate_dedupe_tables(conn)
+        ensure_indexes(conn)
+        conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_traffic_unique_date_source
+            ON traffic_sources(ref_date, source_type)
+        """)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def migrate_article_identity(conn: sqlite3.Connection) -> None:
+    """Allow one WeChat message to contain multiple articles via item_idx."""
+    if not table_exists(conn, "articles"):
+        return
+
+    if article_identity_is_composite(conn):
+        recover_partial_article_migration(conn)
+        return
+
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("""
+        CREATE TABLE articles_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            msg_id TEXT NOT NULL,
+            item_idx INTEGER NOT NULL DEFAULT 1,
+            title TEXT NOT NULL,
+            publish_date TEXT,
+            first_seen TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            last_updated TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            UNIQUE(msg_id, item_idx)
+        )
+    """)
+    copy_article_rows_from(conn, "articles", "articles_new")
+    conn.execute("DROP TABLE articles")
+    conn.execute("ALTER TABLE articles_new RENAME TO articles")
+
+
+def recover_partial_article_migration(conn: sqlite3.Connection) -> None:
+    """Complete a previous interrupted article identity migration if needed."""
+    if not table_exists(conn, "articles_old"):
+        return
+
+    new_count = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+    old_count = conn.execute("SELECT COUNT(*) FROM articles_old").fetchone()[0]
+    if old_count == 0:
+        conn.execute("DROP TABLE articles_old")
+        return
+    if new_count == 0:
+        copy_article_rows_from(conn, "articles_old", "articles")
+        conn.execute("DROP TABLE articles_old")
+        return
+
+    copy_article_rows_from(conn, "articles_old", "articles")
+    missing = conn.execute("""
+        SELECT COUNT(*)
+        FROM articles_old old
+        WHERE NOT EXISTS (
+            SELECT 1 FROM articles new WHERE new.id = old.id
+        )
+    """).fetchone()[0]
+    if missing == 0:
+        conn.execute("DROP TABLE articles_old")
+
+
+def copy_article_rows_from(conn: sqlite3.Connection, source_table: str, target_table: str) -> None:
+    source = quote_identifier(source_table)
+    target = quote_identifier(target_table)
+    conn.execute(f"""
+        INSERT OR IGNORE INTO {target} (id, msg_id, item_idx, title, publish_date, first_seen, last_updated)
+        SELECT
+            id,
+            msg_id,
+            COALESCE(item_idx, 1),
+            title,
+            publish_date,
+            COALESCE(first_seen, datetime('now','localtime')),
+            COALESCE(last_updated, datetime('now','localtime'))
+        FROM {source}
+        WHERE id IN (
+            SELECT MIN(id)
+            FROM {source}
+            GROUP BY msg_id, COALESCE(item_idx, 1)
+        )
+    """)
+
+
+def repair_article_foreign_keys(conn: sqlite3.Connection) -> None:
+    for table_name in ("article_daily_metrics", "trend_snapshots"):
+        if not table_exists(conn, table_name):
+            continue
+        foreign_keys = conn.execute(
+            f"PRAGMA foreign_key_list({quote_identifier(table_name)})"
+        ).fetchall()
+        if any(row[2] == "articles_old" for row in foreign_keys):
+            rebuild_table_with_article_fk(conn, table_name)
+
+
+def rebuild_table_with_article_fk(conn: sqlite3.Connection, table_name: str) -> None:
+    table = quote_identifier(table_name)
+    temp_table_name = f"{table_name}_fk_repair_old"
+    temp_table = quote_identifier(temp_table_name)
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
+    ).fetchone()
+    if not row or not row[0]:
+        return
+
+    create_sql = (
+        row[0]
+        .replace('REFERENCES "articles_old"', "REFERENCES articles")
+        .replace("REFERENCES articles_old", "REFERENCES articles")
+    )
+    conn.execute("PRAGMA foreign_keys = OFF")
+    if table_exists(conn, temp_table_name):
+        conn.execute(f"DROP TABLE {temp_table}")
+    conn.execute(f"ALTER TABLE {table} RENAME TO {temp_table}")
+    conn.execute(create_sql)
+
+    old_columns = table_columns(conn, temp_table_name)
+    new_columns = table_columns(conn, table_name)
+    common_columns = [column for column in old_columns if column in new_columns]
+    if common_columns:
+        columns_sql = ", ".join(quote_identifier(column) for column in common_columns)
+        conn.execute(f"""
+            INSERT INTO {table} ({columns_sql})
+            SELECT {columns_sql} FROM {temp_table}
+        """)
+    conn.execute(f"DROP TABLE {temp_table}")
+
+
+def table_columns(conn: sqlite3.Connection, table_name: str) -> list[str]:
+    return [
+        row[1]
+        for row in conn.execute(f"PRAGMA table_info({quote_identifier(table_name)})").fetchall()
+    ]
+
+
+def ensure_indexes(conn: sqlite3.Connection) -> None:
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_daily_article_date ON article_daily_metrics(article_id, ref_date);
+        CREATE INDEX IF NOT EXISTS idx_trends_article_date ON trend_snapshots(article_id, snapshot_date);
+        CREATE INDEX IF NOT EXISTS idx_traffic_date ON traffic_sources(ref_date);
+        CREATE INDEX IF NOT EXISTS idx_summary_date ON summary_metrics(ref_date);
+        CREATE INDEX IF NOT EXISTS idx_user_daily_date ON user_daily_metrics(ref_date);
+    """)
+
+
+def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
+    ).fetchone()
+    return bool(row)
+
+
+def article_identity_is_composite(conn: sqlite3.Connection) -> bool:
+    for index in conn.execute("PRAGMA index_list(articles)").fetchall():
+        is_unique = int(index[2]) == 1
+        if not is_unique:
+            continue
+        columns = [
+            row[2]
+            for row in conn.execute(f"PRAGMA index_info({quote_identifier(index[1])})").fetchall()
+        ]
+        if columns == ["msg_id", "item_idx"]:
+            return True
+    return False
+
+
+def quote_identifier(value: str) -> str:
+    return '"' + str(value).replace('"', '""') + '"'
+
+
+def migrate_dedupe_tables(conn: sqlite3.Connection) -> None:
+    """Clean historical duplicates before unique indexes are enforced."""
+    conn.execute("""
+        DELETE FROM traffic_sources
+        WHERE COALESCE(ref_date, '') = ''
+          AND COALESCE(source_type, '') = ''
+    """)
+    conn.execute("""
+        DELETE FROM traffic_sources
+        WHERE id NOT IN (
+            SELECT MAX(id)
+            FROM traffic_sources
+            GROUP BY ref_date, source_type
+        )
+    """)
 
 
 def norm_date(s: str) -> str:
@@ -130,6 +334,14 @@ def norm_date(s: str) -> str:
     # "2026/05/12" → "2026-05-12"
     s = s.replace("/", "-")
     return s
+
+
+def normalize_item_idx(value: Any) -> int:
+    try:
+        item_idx = int(str(value).strip() or "1")
+    except (TypeError, ValueError):
+        return 1
+    return item_idx if item_idx > 0 else 1
 
 
 def parse_tendency_list(raw: str) -> list[dict]:
@@ -202,7 +414,7 @@ def parse_content_analysis(raw_file: Path) -> dict:
             msg_id = str(article.get("msg_id", ""))
             title = article.get("title", "")
             publish_date = norm_date(article.get("ref_date", ""))  # 发布日期
-            item_idx = article.get("item_idx", 1)
+            item_idx = normalize_item_idx(article.get("item_idx", 1))
 
             if not msg_id:
                 continue
@@ -218,6 +430,7 @@ def parse_content_analysis(raw_file: Path) -> dict:
             # Daily metrics — use COLLECTION date so each snapshot creates a new row
             result["daily_metrics"].append({
                 "msg_id": msg_id,
+                "item_idx": item_idx,
                 "ref_date": collect_date,
                 "total_read_uv": int(article.get("total_read_uv", 0) or 0),
                 "read_uv_ratio": float(article.get("read_uv_ratio", 0) or 0),
@@ -230,6 +443,7 @@ def parse_content_analysis(raw_file: Path) -> dict:
                 for point in parse_tendency_list(tl):
                     result["trends"].append({
                         "msg_id": msg_id,
+                        "item_idx": item_idx,
                         **point,
                     })
 
@@ -307,30 +521,31 @@ def parse_user_analysis(raw_file: Path) -> dict:
 
 def store_parsed(parsed: dict, raw_file: Path) -> dict:
     """Store parsed records. Returns counts per table."""
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect_db()
     cur = conn.cursor()
     counts = {"articles": 0, "daily": 0, "traffic": 0, "trends": 0, "summary": 0, "user_daily": 0, "account": 0}
 
     try:
         # Articles (content_analysis only)
         for a in parsed.get("articles", []):
+            item_idx = normalize_item_idx(a.get("item_idx", 1))
             cur.execute("""
                 INSERT INTO articles (msg_id, item_idx, title, publish_date, last_updated)
                 VALUES (?,?,?,?,datetime('now','localtime'))
-                ON CONFLICT(msg_id) DO UPDATE SET
+                ON CONFLICT(msg_id, item_idx) DO UPDATE SET
                     title=excluded.title,
                     publish_date=COALESCE(excluded.publish_date, articles.publish_date),
                     last_updated=datetime('now','localtime')
-            """, (a["msg_id"], a["item_idx"], a["title"], a["publish_date"]))
+            """, (a["msg_id"], item_idx, a["title"], a["publish_date"]))
             counts["articles"] += 1
 
         # Build article_id map
-        cur.execute("SELECT msg_id, id FROM articles")
-        msg_to_id = {r[0]: r[1] for r in cur.fetchall()}
+        cur.execute("SELECT msg_id, item_idx, id FROM articles")
+        article_to_id = {(r[0], normalize_item_idx(r[1])): r[2] for r in cur.fetchall()}
 
         # Daily metrics
         for dm in parsed.get("daily_metrics", []):
-            aid = msg_to_id.get(dm["msg_id"])
+            aid = article_to_id.get((dm["msg_id"], normalize_item_idx(dm.get("item_idx", 1))))
             if not aid:
                 continue
             try:
@@ -345,11 +560,18 @@ def store_parsed(parsed: dict, raw_file: Path) -> dict:
 
         # Traffic sources
         for ts in parsed.get("traffic_sources", []):
+            if not ts.get("ref_date") or not ts.get("source_type"):
+                continue
             try:
                 cur.execute("""
-                    INSERT OR REPLACE INTO traffic_sources
+                    INSERT INTO traffic_sources
                     (ref_date, source_type, source_name, read_uv, read_uv_ratio, captured_at)
                     VALUES (?,?,?,?,?,datetime('now','localtime'))
+                    ON CONFLICT(ref_date, source_type) DO UPDATE SET
+                        source_name=excluded.source_name,
+                        read_uv=excluded.read_uv,
+                        read_uv_ratio=excluded.read_uv_ratio,
+                        captured_at=datetime('now','localtime')
                 """, (ts["ref_date"], ts["source_type"], ts["source_name"], ts["read_uv"], ts["read_uv_ratio"]))
                 counts["traffic"] += 1
             except Exception as e:
@@ -357,7 +579,7 @@ def store_parsed(parsed: dict, raw_file: Path) -> dict:
 
         # Trends
         for td in parsed.get("trends", []):
-            aid = msg_to_id.get(td["msg_id"])
+            aid = article_to_id.get((td["msg_id"], normalize_item_idx(td.get("item_idx", 1))))
             if not aid:
                 continue
             try:
@@ -419,13 +641,16 @@ def store_parsed(parsed: dict, raw_file: Path) -> dict:
         """, (page_type, api_count, article_count, str(raw_file)))
 
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
     return counts
 
 
 def stats() -> dict:
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect_db()
     conn.row_factory = sqlite3.Row
     try:
         return {
@@ -445,7 +670,7 @@ if __name__ == "__main__":
     init_db()
     
     # Wipe and reparse from existing raw files
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = connect_db()
     conn.execute("DELETE FROM trend_snapshots")
     conn.execute("DELETE FROM traffic_sources")
     conn.execute("DELETE FROM article_daily_metrics")
@@ -475,9 +700,9 @@ def import_published_records(data: dict) -> tuple[int, int]:
     Extracts msg_id, title, publish_date, total_reads from the scan data.
     Returns (new_count, updated_count).
     """
-    conn = sqlite3.connect(str(DB_PATH))
-    cur = conn.cursor()
     init_db()
+    conn = connect_db()
+    cur = conn.cursor()
 
     article_list = []
     for resp in data.get("api_responses", []):
@@ -487,55 +712,83 @@ def import_published_records(data: dict) -> tuple[int, int]:
             if isinstance(item, dict):
                 article_list.append(item)
 
-    new_count, updated_count = 0, 0
-    for a in article_list:
-        msg_id = str(a.get("msg_id", ""))
-        title = str(a.get("title", ""))
-        publish_date = a.get("publish_date", "")
-        total_reads = int(a.get("total_reads", 0) or 0)
+    try:
+        new_count, updated_count = 0, 0
+        for a in dedupe_published_articles(article_list):
+            msg_id = str(a.get("msg_id", "") or "").strip()
+            item_idx = normalize_item_idx(a.get("item_idx", 1))
+            title = str(a.get("title", ""))
+            publish_date = a.get("publish_date", "")
+            total_reads = parse_total_reads(a.get("total_reads", 0) or 0)
 
-        if not msg_id and not title:
-            continue
+            if not msg_id and not title:
+                continue
 
-        # Normalize publish_date
-        if publish_date:
-            publish_date = norm_date(publish_date)
+            # Normalize publish_date
+            if publish_date:
+                publish_date = norm_date(publish_date)
 
-        # Try to find by msg_id first, then by title+publish_date
-        existing_id = None
-        if msg_id:
-            cur.execute("SELECT id FROM articles WHERE msg_id=?", (msg_id,))
-            row = cur.fetchone()
-            if row:
-                existing_id = row[0]
+            # Try to find by msg_id first, then by title+publish_date
+            existing_id = None
+            if msg_id:
+                cur.execute(
+                    "SELECT id FROM articles WHERE msg_id=? AND item_idx=?",
+                    (msg_id, item_idx),
+                )
+                row = cur.fetchone()
+                if row:
+                    existing_id = row[0]
 
-        if not existing_id and title and publish_date:
-            cur.execute("SELECT id FROM articles WHERE title=? AND publish_date=?",
-                       (title, publish_date))
-            row = cur.fetchone()
-            if row:
-                existing_id = row[0]
+            if not existing_id and not msg_id and title and publish_date:
+                cur.execute(
+                    "SELECT id FROM articles WHERE title=? AND publish_date=? AND item_idx=?",
+                    (title, publish_date, item_idx),
+                )
+                row = cur.fetchone()
+                if row:
+                    existing_id = row[0]
 
-        if existing_id:
-            # Update existing
-            cur.execute("""
-                UPDATE articles SET 
-                    title=COALESCE(?, title),
-                    publish_date=COALESCE(?, publish_date),
-                    last_updated=datetime('now','localtime')
-                WHERE id=?
-            """, (title or None, publish_date or None, existing_id))
-            updated_count += 1
-        else:
-            # Insert new
-            cur.execute("""
-                INSERT INTO articles (msg_id, item_idx, title, publish_date)
-                VALUES (?, 1, ?, ?)
-            """, (msg_id or f"unknown_{title[:20]}", title, publish_date))
-            new_count += 1
+            stable_msg_id = msg_id or fallback_msg_id(title, publish_date, item_idx)
+            if not existing_id and stable_msg_id:
+                cur.execute(
+                    "SELECT id FROM articles WHERE msg_id=? AND item_idx=?",
+                    (stable_msg_id, item_idx),
+                )
+                row = cur.fetchone()
+                if row:
+                    existing_id = row[0]
 
-        # Store the total_reads as a one-time snapshot (ref_date = import date)
-        if existing_id or new_count > 0:
+            if existing_id:
+                if msg_id:
+                    cur.execute(
+                        "SELECT id FROM articles WHERE msg_id=? AND item_idx=? AND id<>?",
+                        (msg_id, item_idx, existing_id),
+                    )
+                    target = cur.fetchone()
+                    if target:
+                        existing_id = target[0]
+                # Update existing
+                cur.execute("""
+                    UPDATE articles SET 
+                        msg_id=CASE
+                            WHEN ? != '' AND msg_id LIKE 'dom_%' THEN ?
+                            ELSE msg_id
+                        END,
+                        item_idx=?,
+                        title=COALESCE(?, title),
+                        publish_date=COALESCE(?, publish_date),
+                        last_updated=datetime('now','localtime')
+                    WHERE id=?
+                """, (msg_id, msg_id, item_idx, title or None, publish_date or None, existing_id))
+                updated_count += 1
+            else:
+                # Insert new
+                cur.execute("""
+                    INSERT INTO articles (msg_id, item_idx, title, publish_date)
+                    VALUES (?, ?, ?, ?)
+                """, (stable_msg_id, item_idx, title, publish_date))
+                new_count += 1
+
             aid = existing_id or cur.lastrowid
             if aid and total_reads > 0:
                 import_date = datetime.now().strftime("%Y-%m-%d")
@@ -545,6 +798,54 @@ def import_published_records(data: dict) -> tuple[int, int]:
                     VALUES (?, ?, ?, 0, 0, datetime('now','localtime'))
                 """, (aid, import_date, total_reads))
 
-    conn.commit()
-    conn.close()
-    return new_count, updated_count
+        conn.commit()
+        return new_count, updated_count
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def dedupe_published_articles(article_list: list[dict]) -> list[dict]:
+    """Keep one record per article before importing a published-record scan."""
+    deduped: list[dict] = []
+    seen: set[str] = set()
+    for article in article_list:
+        key = published_article_key(article)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(article)
+    return deduped
+
+
+def published_article_key(article: dict) -> str:
+    msg_id = str(article.get("msg_id", "") or "").strip()
+    item_idx = str(normalize_item_idx(article.get("item_idx", 1)))
+    title = str(article.get("title", "") or "").strip()
+    publish_date = norm_date(article.get("publish_date", "") or "")
+    if msg_id:
+        return f"id:{msg_id}:{item_idx}"
+    if title and publish_date:
+        return f"title_date:{title}:{publish_date}:{item_idx}"
+    if title:
+        return f"title:{title}:{item_idx}"
+    return ""
+
+
+def parse_total_reads(value: Any) -> int:
+    if isinstance(value, str) and "万" in value:
+        try:
+            return round(float(value.replace(",", "").replace("万", "").strip()) * 10000)
+        except ValueError:
+            return 0
+    try:
+        return int(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return 0
+
+
+def fallback_msg_id(title: str, publish_date: str, item_idx: Any = 1) -> str:
+    raw = f"{title}|{publish_date}|{normalize_item_idx(item_idx)}".encode("utf-8")
+    return "dom_" + hashlib.sha1(raw).hexdigest()[:16]
