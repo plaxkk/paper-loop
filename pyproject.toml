@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paper-to-wechat"
+version = "1.0.0"
+description = "AI论文学习→解读文章→审稿→发布→数据回收→反哺撰文的完整闭环流水线"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.40",
+    "PyMuPDF>=1.23",
+    "Pillow>=10.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "black>=23.0"]
+
+[project.scripts]
+paper-to-wechat = "pipeline.run:main"
+
+[tool.setuptools.packages.find]
+include = ["pipeline*", "modules*"]

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtualenv
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Runtime data and private settings: only the public template is versioned
+/data/*
+!/data/config.json.example
+/config/*.local.*
+/config/persona.toml
+*.local.json
+*.local.md
+*.log
+
+# Private learning notes
+/study-plan*.md
+/progress*.md
+/ai-fundamentals/
+
+# State
+state/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Clean release exports (separate Git repositories)
+/release/

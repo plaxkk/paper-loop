@@ -1,0 +1,17 @@
+{
+  "_comment": "复制为 data/config.local.json，仅在本地填写；也可用 PAPER_LOOP_CONFIG 指定路径。",
+  "wechat_appid": "",
+  "wechat_appsecret": "",
+  "author": "",
+  "cover_tagline": "论文学习笔记",
+  "persona_file": "data/private/persona.md",
+  "study_plan_file": "",
+  "progress_file": "",
+  "wechatsync_token": "",
+  "llm": {
+    "base_url": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "api_key": ""
+  }
+}
