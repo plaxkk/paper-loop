@@ -196,8 +196,8 @@ ending_section = "写在最后"   # 结尾：重新框定问题或留下可辩�
 ### 安装
 
 ```bash
-git clone https://github.com/plaxkk/paper-loop-public.git
-cd paper-loop-public
+git clone https://github.com/plaxkk/paper-loop.git
+cd paper-loop
 pip install -e .
 npm install -g @wechatsync/cli
 ```
