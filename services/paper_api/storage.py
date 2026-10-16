@@ -32,7 +32,8 @@ class Storage:
     def exists(self, identifier):
         try:
             response = httpx.head(self.base + "/object/" + self.path(identifier), headers=self.headers, timeout=15)
-            if response.status_code == 404:
+            # Storage's HEAD endpoint uses 400 for missing objects on some versions.
+            if response.status_code in {400, 404}:
                 return False
             response.raise_for_status()
             return True

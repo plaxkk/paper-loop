@@ -28,11 +28,13 @@
 
 ## 云部署与迁移验证（2026-10-16）
 
-- SQLite 模式论文服务 63 项、原项目 84 项测试通过，共 147 项。
+- SQLite 模式论文服务 69 项、原项目 84 项测试通过，共 153 项；新增 Storage HEAD 返回 400/404 与鉴权、服务异常的兼容检查。
 - 隔离的本地 PostgreSQL 实例运行 61 项服务与 Serverless 测试通过，覆盖配额、归属、级联删除、任务租约、上传校验、删除队列和翻译检查点；2 项单机进程启动器测试单独在 SQLite 套件中通过。
 - TypeScript 检查与 Next.js 生产构建通过。单个 Vercel 项目的 Next.js + FastAPI Services 构建成功并推广到生产域名。
 - 新 Supabase 项目已应用私有数据迁移，9 张表开启 RLS、anon 无 SELECT 权限，PDF bucket 为私有。未创建付费资源，未启用 AI。
 - 独立 `paper-loop-api` 项目已暂停；部署入口统一为 `paper-loop`。
-- **当前阻塞**：生产 API 从 Supabase 收到数据库密码认证失败，需在 `paper-loop` 更新正确的 `PAPER_DATABASE_URL` 后重新部署。已修正原 URL 中未编码的特殊字符；修正 URL 格式不等于密码验证通过。
-- 后台调度已获用户授权，迁移文件已准备；待数据库连通后安装并验证。真实 Storage 上传、大文件直传、云端自动解析和删除尚未完成验收，不以 Vercel READY 代替端到端验证。
-- 本机浏览器访问生产域名曾遇到连接失败，平台 CLI 可取得实际运行错误；尚未取得云端浏览器完整流程的验收结果。
+- 用户更新 Production 数据库连接串后，修正密码特殊字符的 URL 编码并重新部署。生产会话返回 200，确认直传开启、AI 关闭。
+- 后台调度迁移已应用：任务触发器与每分钟兜底任务启用，专用鉴权调用返回 200，公开调用返回 404。
+- 生产链路实测：5,245,377 字节 PDF 签名直传返回 200，后台自动解析为 2 页 / 4 个正文块，私有文件读回一致；其他会话返回 404，页码和历史恢复正常，AI 操作明确返回 503。删除后数据库论文、任务、关联事件、Storage 对象及删除队列均为 0。
+- 安全检查：9 条 RLS 无策略 INFO 对应私有 schema 的默认拒绝设计。pg_net 安装产生 1 条 [extension_in_public 提醒](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public)：扩展元信息位于 public，实际函数位于 net，public 中属于该扩展的函数为 0；该扩展不可直接迁移 schema，未修改系统目录或放宽权限。
+- 内置浏览器已打开生产站点，实际完成 5 MB PDF 上传、自动解析、PDF.js 原文渲染与翻页。刷新后恢复到第二页；真实 Transformer v7 从 arXiv 云端导入，15 页 / 376 块 / 38,810 字符（含附录）。线上阅读器截图保存于 `/private/tmp/paper-loop-live-reader.jpg`（未提交）。

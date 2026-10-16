@@ -116,3 +116,14 @@ def test_worker_tick_rejects_public_requests(client, settings, cloud):
 def test_storage_paths_reject_arbitrary_objects(settings):
     with pytest.raises(StorageError):
         Storage(settings).path("../../other-paper")
+
+
+@pytest.mark.parametrize("status,exists", [(200, True), (400, False), (404, False), (401, None), (403, None), (500, None)])
+def test_storage_head_distinguishes_missing_files_from_service_errors(settings, monkeypatch, status, exists):
+    import httpx
+    monkeypatch.setattr(httpx, "head", lambda *args, **kwargs: httpx.Response(status, request=httpx.Request("HEAD", "https://storage.example.test/object")))
+    if exists is None:
+        with pytest.raises(StorageError):
+            Storage(settings).exists("a" * 32)
+    else:
+        assert Storage(settings).exists("a" * 32) is exists
