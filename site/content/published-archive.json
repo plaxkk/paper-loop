@@ -1,0 +1,178 @@
+[
+  {
+    "slug": "transformer",
+    "sourceFile": "data/articles/P1_attention_is_all_you_need.json",
+    "title": "不夸张地说，这篇论文，改变了整个AI的历史走向",
+    "publicationDates": [
+      "2026-04-30"
+    ],
+    "sourceContentSha256": "610d3b4b402d6a26b70ded0ecce8e2e603fd609edf93488529602e194a4aae27",
+    "bodyCharacters": 4080,
+    "images": [
+      "/papers/archive/transformer-01.png",
+      "/papers/archive/transformer-02.png"
+    ]
+  },
+  {
+    "slug": "bert",
+    "sourceFile": "data/articles/P2_BERT.json",
+    "title": "BERT的思路到底有多简单？简单到让人怀疑：这也行？",
+    "publicationDates": [
+      "2026-04-30",
+      "2026-05-05"
+    ],
+    "sourceContentSha256": "6368c1c61ba7f68303c7aa017d2f58634289a2adc4b6c00c14a69c4141082482",
+    "bodyCharacters": 3066,
+    "images": [
+      "/papers/archive/bert-01.png",
+      "/papers/archive/bert-02.png"
+    ]
+  },
+  {
+    "slug": "gpt-1",
+    "sourceFile": "data/articles/P3_GPT1_v1.json",
+    "title": "GPT-1：第一次证明「先预训练，再微调」这条路走得通",
+    "publicationDates": [
+      "2026-05-08"
+    ],
+    "sourceContentSha256": "e827238845414c494453401544d3822a2f5fe011f0c109de18ba8ba75758a47d",
+    "bodyCharacters": 2409,
+    "images": [
+      "/papers/archive/gpt-1-01.png",
+      "/papers/archive/gpt-1-02.png"
+    ]
+  },
+  {
+    "slug": "gpt-2",
+    "sourceFile": "data/articles/P4_GPT2.json",
+    "title": "OpenAI做了一次豪赌：不给任何指令，让模型自己学会所有任务",
+    "publicationDates": [
+      "2026-05-10"
+    ],
+    "sourceContentSha256": "cee3875c8927891ca66d9c6d79e5ec9c44eef100c76eb2dc0ae51957aac74466",
+    "bodyCharacters": 3425,
+    "images": [
+      "/papers/archive/gpt-2-01.png",
+      "/papers/archive/gpt-2-02.png"
+    ]
+  },
+  {
+    "slug": "gpt-3",
+    "sourceFile": "data/articles/P5_GPT3.json",
+    "title": "GPT-3：1750亿参数的豪赌，以及\"涌现\"这个改变一切的发现",
+    "publicationDates": [
+      "2026-05-11"
+    ],
+    "sourceContentSha256": "e280769585a00fd5caac434de3c801c2ad8351bb9b06461b3eaacdfc6df2f214",
+    "bodyCharacters": 3346,
+    "images": [
+      "/papers/archive/gpt-3-01.png",
+      "/papers/archive/gpt-3-02.png"
+    ]
+  },
+  {
+    "slug": "scaling-laws",
+    "sourceFile": "data/articles/P6_ScalingLaws.json",
+    "title": "大力出奇迹的背后：OpenAI找到了炼丹的物理定律",
+    "publicationDates": [
+      "2026-05-12"
+    ],
+    "sourceContentSha256": "f19e90cfd90eb44a4df7bd72747a436ffe84c9b858385dbd035fa1c7062d5a99",
+    "bodyCharacters": 2019,
+    "images": [
+      "/papers/archive/scaling-laws-01.png",
+      "/papers/archive/scaling-laws-02.png",
+      "/papers/archive/scaling-laws-03.png"
+    ]
+  },
+  {
+    "slug": "chinchilla",
+    "sourceFile": "data/articles/P7_Chinchilla.json",
+    "title": "越大越好？Chinchilla说：你可能练错了",
+    "publicationDates": [
+      "2026-05-15"
+    ],
+    "sourceContentSha256": "d933336c5d5ba27fcfe66aea21e8216e1d320a21a9d93e2a540768adc21e72fb",
+    "bodyCharacters": 2164,
+    "images": [
+      "/papers/archive/chinchilla-01.png",
+      "/papers/archive/chinchilla-02.png",
+      "/papers/archive/chinchilla-03.png"
+    ]
+  },
+  {
+    "slug": "flashattention",
+    "sourceFile": "data/articles/P8_FlashAttention.json",
+    "title": "FlashAttention：GPU上\"偷懒\"的艺术，凭什么让所有大模型都离不开它？",
+    "publicationDates": [
+      "2026-05-20"
+    ],
+    "sourceContentSha256": "6eaeb623678b7ccf77b5775cb130b7900f1f173c8041a143de0657923b945185",
+    "bodyCharacters": 2956,
+    "images": [
+      "/papers/archive/flashattention-01.png",
+      "/papers/archive/flashattention-02.png",
+      "/papers/archive/flashattention-03.png",
+      "/papers/archive/flashattention-04.png"
+    ]
+  },
+  {
+    "slug": "flashattention-2",
+    "sourceFile": "data/articles/P9_FlashAttention2.json",
+    "title": "FlashAttention-2：GPU利用率从50%干到90%，同一个作者的自我进化",
+    "publicationDates": [
+      "2026-05-23"
+    ],
+    "sourceContentSha256": "faad7e9ffd89d6ec480335192da531d58a534f95a63d01e3c9b3365007074e24",
+    "bodyCharacters": 2998,
+    "images": [
+      "/papers/archive/flashattention-2-01.png",
+      "/papers/archive/flashattention-2-02.png",
+      "/papers/archive/flashattention-2-03.png",
+      "/papers/archive/flashattention-2-04.png"
+    ]
+  },
+  {
+    "slug": "zero",
+    "sourceFile": "data/articles/P10_ZeRO.json",
+    "title": "ZeRO：把GPU显存用到极致的魔法",
+    "publicationDates": [
+      "2026-05-31"
+    ],
+    "sourceContentSha256": "645f4a713f968936e6812dce80baa4840dd14762e6d6e6e20b70f9255ed01a5a",
+    "bodyCharacters": 3183,
+    "images": [
+      "/papers/archive/zero-01.png",
+      "/papers/archive/zero-02.png",
+      "/papers/archive/zero-03.png"
+    ]
+  },
+  {
+    "slug": "instructgpt",
+    "sourceFile": "data/articles/P11_InstructGPT.json",
+    "title": "1.3B打败175B：InstructGPT如何教会AI听话",
+    "publicationDates": [
+      "2026-06-11"
+    ],
+    "sourceContentSha256": "e6b9b2b5e56cf50432aa481c0f23f1cf6ec1b53e7c31cbb63de95b8c729751b9",
+    "bodyCharacters": 4102,
+    "images": [
+      "/papers/archive/instructgpt-01.png",
+      "/papers/archive/instructgpt-02.png"
+    ]
+  },
+  {
+    "slug": "constitutional-ai",
+    "sourceFile": "data/articles/P12_ConstitutionalAI.json",
+    "title": "用AI管AI：Constitutional AI如何让大模型学会自我约束",
+    "publicationDates": [
+      "2026-06-13"
+    ],
+    "sourceContentSha256": "eaceb654327b8fd4a898bcb3f89639e34fcc2751b1703a9a54eaac202e66ee3e",
+    "bodyCharacters": 4828,
+    "images": [
+      "/papers/archive/constitutional-ai-01.png",
+      "/papers/archive/constitutional-ai-02.png"
+    ]
+  }
+]

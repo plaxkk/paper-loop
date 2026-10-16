@@ -25,3 +25,5 @@
 .paper-section-nav{max-height:215px;overflow:auto}.paper-section-nav button{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;border:0;background:none;padding:6px 3px;font-size:10px;line-height:1.6;color:var(--muted)}.paper-section-nav button:hover{color:var(--accent)}.paper-section-nav small{font-size:8px;color:var(--muted)}
 
 .idea-title{font-weight:560;line-height:1.35}.idea-card{display:block}
+
+.archive-note{padding:16px 20px;margin:0 0 28px;border-left:3px solid var(--accent);background:var(--soft)}.archive-note>span{font-size:12px;font-weight:600;color:var(--accent)}.archive-note p{font-size:12px;line-height:1.9;margin:6px 0 0;color:var(--muted)}

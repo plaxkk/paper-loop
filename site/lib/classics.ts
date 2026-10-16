@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-export type Classic = { slug:string; title:string; englishTitle:string; date:string; year:number; topic:string; difficulty:string; minutes:number; contribution:string; problem:string; source:string; arxiv?:string; stage:number; status:'draft'|'reviewed'; content:string; glossary:{term:string;definition:string}[] };
+export type Classic = { slug:string; title:string; englishTitle:string; date:string; year:number; topic:string; difficulty:string; minutes:number; contribution:string; problem:string; source:string; arxiv?:string; stage:number; status:'draft'|'reviewed'|'archived'; publication?:{channel:string;dates:string[]}; content:string; glossary:{term:string;definition:string}[] };
 const directory = path.join(process.cwd(), 'content/classics');
 export function classics():Classic[] {
   return fs.readdirSync(directory).filter(file => file.endsWith('.md')).map(file => {
@@ -20,5 +20,5 @@ export const stages = [
   { title:'预训练成为共同语言', years:'2018—2019', description:'从任务专用模型走向通用预训练。GPT 与 BERT 在生成和理解两个方向探索，路线并不相同。' },
   { title:'规模带来的新问题', years:'2019—2020', description:'参数、数据与计算一起增长。能力的扩展和训练系统的限制，需要同时理解。' },
   { title:'把能力变成可用的模型', years:'2022', description:'这一阶段存在并行的问题：算力如何分配、训练如何加速、模型如何理解人的意图。' },
-  { title:'重新思考偏好学习', years:'2023', description:'对齐方法继续演进。新的训练目标，让我们重新审视奖励模型与策略优化之间的关系。' },
+  { title:'对齐与效率继续演进', years:'2023', description:'偏好优化和训练内核，分别沿着训练目标与硬件利用率继续改进。' },
 ];

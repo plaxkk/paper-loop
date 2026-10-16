@@ -54,13 +54,13 @@ docker compose up --build -d
 
 打开 http://localhost:3000。网关只绑定回环地址，适合本机使用或置于 HTTPS 反向代理之后。对外提供服务时设置正确的 `PAPER_PUBLIC_ORIGINS=https://你的域名` 和 `PAPER_SECURE_COOKIE=true`，并在外层配置 HTTPS。API、Worker、网站使用内部网络，只有网关暴露端口。SQLite 与私有 PDF 保存在 `paper-data` 命名卷中；不要把该卷当成静态站点目录发布。
 
-公开上线前，人工审核经典文章，并在隐私页补充实际模型服务商及其数据政策。仓库自带内容是**编辑初稿**，没有代替人工审核。当前机器没有 Docker，本次交付只静态检查部署配置，未声称完成容器启动验收。
+公开上线前，人工审核经典文章，并在隐私页补充实际模型服务商及其数据政策。内容状态区分公众号原稿归档（archived）与编辑初稿（draft），归档没有代替新一轮人工审核。当前机器没有 Docker，本次交付只静态检查部署配置，未声称完成容器启动验收。
 
 ## 内容维护
 
 `site/content/classics/*.md` 使用 数据格式固定为 JSON 的 frontmatter 和 Markdown 正文。字段包括标题、原始日期、主题、阶段、来源、arXiv 编号、术语与审校状态。论文按首次公开日期排序，阶段仅是阅读编排，不表示直接因果关系。
 
-发布前：核对论文版本、方法和实验条件；复核数字、公式、图片署名与后续影响；然后把 `status: draft` 改为 `reviewed`。不要整体导入 `data/`，不要把公众号 CDN 当成网站必须依赖。Transformer 示例图的权利与署名见 `site/public/papers/ATTRIBUTION.md`。
+发布前：核对论文版本、方法和实验条件；复核数字、公式、图片署名与后续影响；然后把 `status: draft` 改为 `reviewed`；`archived` 表示直接迁入的公众号原稿，迁移记录见 [已发表文章迁移](published-classics.md)。不要整体导入 `data/`，不要把公众号 CDN 当成网站必须依赖。Transformer 示例图的权利与署名见 `site/public/papers/ATTRIBUTION.md`。
 
 ## 数据与后台任务
 
