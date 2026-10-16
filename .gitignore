@@ -9,6 +9,7 @@ build/
 # Virtualenv
 venv/
 .venv/
+/.venv-site/
 
 # IDE
 .vscode/
@@ -47,3 +48,7 @@ htmlcov/
 
 # Clean release exports (separate Git repositories)
 /release/
+
+# Deployment links and downloaded environment files
+.vercel/
+.vercel

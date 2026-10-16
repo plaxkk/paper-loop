@@ -1,0 +1,37 @@
+# Paid persistent storage: create only after confirming the monthly cost.
+services:
+  - type: web
+    name: paper-loop-api
+    runtime: python
+    plan: 0.5c-512mb
+    region: singapore
+    branch: main
+    buildCommand: pip install -r services/paper_api/requirements.txt
+    startCommand: python -m services.paper_api.cloud
+    healthCheckPath: /api/health
+    numInstances: 1
+    disk:
+      name: paper-loop-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: PAPER_API_DATA_DIR
+        value: /var/data/paper-loop
+      - key: PAPER_SECURE_COOKIE
+        value: "true"
+      - key: PAPER_PUBLIC_ORIGINS
+        sync: false
+      - key: PAPER_LLM_API_KEY
+        sync: false
+      - key: PAPER_LLM_BASE_URL
+        value: https://api.deepseek.com/v1
+      - key: PAPER_LLM_MODEL
+        value: deepseek-chat
+      - key: PAPER_GLOBAL_DAILY_ACTIONS
+        value: "5000"
+    buildFilter:
+      paths:
+        - services/paper_api/**
+        - render.yaml

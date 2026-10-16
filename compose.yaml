@@ -1,0 +1,49 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: services/paper_api/Dockerfile
+    environment: &api-environment
+      PAPER_API_DATA_DIR: /data
+      PAPER_LLM_API_KEY: ${PAPER_LLM_API_KEY:-}
+      PAPER_LLM_BASE_URL: ${PAPER_LLM_BASE_URL:-https://api.deepseek.com/v1}
+      PAPER_LLM_MODEL: ${PAPER_LLM_MODEL:-deepseek-chat}
+      PAPER_PUBLIC_ORIGINS: ${PAPER_PUBLIC_ORIGINS:-http://localhost:3000}
+      PAPER_SECURE_COOKIE: ${PAPER_SECURE_COOKIE:-false}
+      PAPER_GLOBAL_DAILY_ACTIONS: ${PAPER_GLOBAL_DAILY_ACTIONS:-5000}
+    volumes:
+      - paper-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+  worker:
+    build:
+      context: .
+      dockerfile: services/paper_api/Dockerfile
+    environment: *api-environment
+    command: [python, -m, services.paper_api.worker]
+    volumes:
+      - paper-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+  site:
+    build: ./site
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+  gateway:
+    image: nginx:1.28-alpine
+    ports:
+      - "127.0.0.1:3000:80"
+    volumes:
+      - ./services/paper_api/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [site, api]
+    restart: unless-stopped
+volumes:
+  paper-data:

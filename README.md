@@ -1,11 +1,47 @@
-# 🔄 Paper Loop —— 论文驱动的全自动内容飞轮
+# Paper Loop · AI 论文阅读与解读
 
-> **一篇论文进去，四平台文章出来。数据跑回来，策略再反哺。**
->
-> AI 论文学习 → 多平台文章生成 → 自动审稿 → 一键分发（公众号/知乎/掘金/CSDN）→ 阅读数据回收 → 策略复盘 —— 一个工程师用 AI 理解 AI 的完整工具链。
+面向有编程基础的中文 AI 学习者：沿经典论文时间线理解大模型的发展，在论文工作台中阅读原文、翻译段落并追问。仓库也保留原有的 Python 论文写作与多平台分发工具链。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
+
+## 网站 MVP
+
+在线访问：[paper-loop-xi.vercel.app](https://paper-loop-xi.vercel.app)。经典栏目已上线；论文工作台需连接持久化云后端后开放。
+
+| 栏目 | 已实现能力 |
+|---|---|
+| 经典论文路线 | 2017—2023 年 12 篇论文、纵向时间线、主题筛选、中文解读、公式和前后篇导航 |
+| 论文工作台 | 上传 PDF / 导入 arXiv、PDF.js 原文阅读、页码与段落定位、论点与提醒、按需翻译和带引用的问答 |
+| 阅读历史 | 当前匿名浏览器恢复论文、页码、译文和对话；单篇或全部删除 |
+
+首批 12 篇解读是**待人工审校的编辑初稿**。AI 功能需要后端配置模型密钥；未配置时仅提供 PDF 原文阅读，并明确提示状态。文字型 PDF 上限 30 MB、100 页，暂不支持扫描件 OCR、图表视觉解释或译文 PDF 导出。
+
+- [本地启动与维护](docs/paper-site.md)
+- [云端部署：Vercel + 持久化论文服务](docs/deployment.md)
+- [验收记录与尚未完成的检查](docs/paper-site-verification.md)
+
+### 本地快速启动
+
+```sh
+python3 -m venv .venv-site
+.venv-site/bin/pip install -r services/paper_api/requirements.txt
+cp services/paper_api/.env.example .env
+cd site && npm ci
+```
+
+填写 `.env` 后，分别启动 API、Worker 和网站；完整命令见运行说明。网站要求 Node.js 24，后端要求 Python 3.10+。也可从仓库根目录执行 `docker compose up --build`，访问 `http://localhost:3000`。
+
+### 网站架构与数据
+
+浏览器 → Next.js（Vercel）→ FastAPI + 独立 Worker 进程 → SQLite WAL / 私有 PDF 持久卷。模型调用只在后端发生，密钥不进入浏览器。Render 部署将两个后端进程运行在同一实例中，共享一块持久磁盘；Compose 本地部署使用独立容器。
+
+匿名会话通过 HttpOnly Cookie 识别。论文、对话和阅读记录保留 30 天，去标识聚合指标保留 180 天；清除 Cookie 后无法自动恢复旧历史。每个匿名会话每天最多导入 3 篇论文、执行 50 次主动 AI 操作，另有全站限额。用户上传内容不会进入经典栏目。
+
+## 原有内容工具链
+
+以下为保留的 Python CLI 与分发工作流。网站使用独立服务和配置，不会自动读取私人文章、微信凭据或运营数据。
 
 ---
 
@@ -267,6 +303,11 @@ python -m pipeline.run strategy                # 周策略复盘
 
 ```
 paper-loop/
+├── site/                  # Next.js 网站、经典内容、PDF 阅读组件
+├── services/paper_api/    # FastAPI、持久任务 Worker、隐私与分析
+├── docs/                  # 运行、部署与验收记录
+├── render.yaml            # 云端持久化后端配置（付费资源）
+├── compose.yaml           # 本地 / 单机容器部署
 ├── pipeline/              # 核心流水线
 │   └── run.py             # CLI 入口
 ├── modules/

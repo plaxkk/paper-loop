@@ -1,0 +1,12 @@
+# Deploy only website source. Never upload runtime data, local settings or Git history.
+/*
+!site
+site/node_modules/
+site/.next/
+site/.vercel/
+site/.env
+site/.env.*
+site/test-results/
+site/playwright-report/
+site/*.tsbuildinfo
+site/tests/

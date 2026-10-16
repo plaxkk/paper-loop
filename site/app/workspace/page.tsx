@@ -1,0 +1,5 @@
+import { ImportForm } from '@/components/import-form';
+import { Footer } from '@/components/footer';
+import { Icon } from '@/components/icons';
+export const metadata={title:'论文工作台'};
+export default async function Page({searchParams}:{searchParams:Promise<{arxiv?:string;classic?:string}>}){ const params=await searchParams; return <><main id="main" className="shell page-main workspace-entry"><div className="page-heading centered"><div className="eyebrow">YOUR READING DESK</div><h1>把论文，读成自己的理解。</h1><p>带上一篇论文。从重要论点开始，<br/>在每一个不懂的地方，找到原文依据。</p></div><ImportForm initialArxiv={params.arxiv} initialClassic={params.classic}/><div className="reading-promises"><div><span className="promise-number mono">01</span><Icon name="list"/><h2>先找到重点</h2><p>研究问题、方法与结论，<br/>对应到具体的原文段落。</p></div><div><span className="promise-number mono">02</span><Icon name="translate"/><h2>再理解细节</h2><p>按页中英对照，<br/>难懂的段落就地解释。</p></div><div><span className="promise-number mono">03</span><Icon name="chat"/><h2>带着问题追问</h2><p>基于论文上下文对话，<br/>让每个回答有据可查。</p></div></div></main><Footer/></>; }
