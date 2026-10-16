@@ -1,47 +1,58 @@
-# 云端部署
+# 云端部署：一个 Vercel 项目 + Supabase
 
-前端部署到 Vercel，论文服务部署到有持久磁盘的 Render 单实例。Vercel 项目使用仓库的 `site/` 作为 Root Directory，GitHub 仓库为 `plaxkk/paper-loop`、生产分支为 `main`。
+网站地址：[paper-loop-xi.vercel.app](https://paper-loop-xi.vercel.app)。GitHub 仓库为 `plaxkk/paper-loop`，生产分支为 `main`。前端和论文 API 都运行在 **`paper-loop` 这一个 Vercel 项目**，不需要另建 `paper-loop-api`。
 
-## 当前状态
+## 服务结构
 
-- 网站前端：[paper-loop-xi.vercel.app](https://paper-loop-xi.vercel.app)，已完成 Vercel 生产构建与部署。
-- 后端：部署配置已就绪，等待确认云账号与付费资源；当前线上工作台处于“准备中”。
-- 模型：尚未配置真实模型密钥，未完成真实模型质量评测。
+根目录 `vercel.json` 使用 [Vercel Services](https://vercel.com/docs/services)：`site/` 的 Next.js 提供页面，`services/` 的 FastAPI 处理 `/api/*`。Services 当前为 Beta；部署 CLI 固定使用 `npx vercel@64.0.2`。项目 Root Directory 留空，Framework、Build/Install Command 使用根配置，不再设置为 `site`。
 
-## 后端：Render
+数据存放于 Supabase 项目 `xnjyeklbpuklmatifpbo`：
 
-仓库根目录的 `render.yaml` 定义了可审阅的资源：新加坡区域、0.5 CPU / 512 MB 单实例、1 GB 持久磁盘。该方案使用付费资源，创建前须确认账户与费用。当前官方计价见 [Render Pricing](https://render.com/pricing)，计算、磁盘、超额流量与模型费用分别计算。
+- `paper_loop` 私有 schema：匿名会话、论文正文、任务、译文、对话、配额与统计。所有表开启 RLS，撤销 anon/authenticated 权限；后端通过私有数据库连接访问，并逐次校验匿名会话归属。
+- `paper-pdfs` 私有 Storage bucket：PDF 由浏览器使用单对象签名地址直接上传，绕开 Vercel 函数请求体限制；服务端校验 SHA-256 与实际大小。阅读时经归属校验返回 60 秒签名地址。
+- 数据库任务触发器通过 `pg_net` 唤醒同项目 `/api/internal/tick`；`pg_cron` 每分钟检查遗漏任务、过期租约与删除队列，空闲时只按小时触发清理。请求携带 Vault 中的专用密钥，接口不允许公开调用。
 
-使用此仓库创建 Blueprint，填写环境变量：
+每次函数只认领一个任务步骤。长篇解读与翻译保存检查点后重新入队，每步最多一次模型请求；失败可重试，进程中断后最多等待 10 分钟租约过期。`/tmp` 仅作调用内缓存，原文件和结果均不依赖 Vercel 本地磁盘。
 
-| 变量 | 值 |
+## 环境变量（仅在 paper-loop 配置）
+
+在 Vercel 项目 Settings → Environment Variables 的 Production 环境配置：
+
+| 变量 | 用途 |
 |---|---|
-| `PAPER_PUBLIC_ORIGINS` | 网站的生产 HTTPS Origin；多个地址用英文逗号分隔，不带末尾斜杠 |
-| `PAPER_LLM_API_KEY` | 在 Render 的秘密环境变量中配置；暂留空时仅支持 PDF 原文阅读 |
-| `PAPER_LLM_BASE_URL` / `PAPER_LLM_MODEL` | 与密钥对应的模型接口和模型名 |
+| `PAPER_DATABASE_URL` | Supabase Connect 的 Transaction pooler URL，端口 6543；密码中的 `@`、`#`、`/` 等必须 URL 编码。后端强制远程 TLS，关闭 prepared statements 以兼容事务池 |
+| `PAPER_SUPABASE_URL` | `https://xnjyeklbpuklmatifpbo.supabase.co` |
+| `PAPER_SUPABASE_SECRET_KEY` | 同项目后端 Secret key，标记 Sensitive，绝不使用 `NEXT_PUBLIC_` 前缀 |
+| `PAPER_SERVERLESS` | `true` |
 | `PAPER_SECURE_COOKIE` | `true` |
-| `PAPER_API_DATA_DIR` | `/var/data/paper-loop`，必须位于挂载磁盘内 |
+| `PAPER_PUBLIC_ORIGINS` | `https://paper-loop-xi.vercel.app`；新增自定义域名时追加完整 Origin，以逗号分隔 |
+| `PAPER_WORKER_SECRET` | 随机、至少 32 字符的专用密钥，与 Supabase Vault 的 `paper_loop_worker_secret` 相同 |
+| `PAPER_LLM_API_KEY` | **当前留空，不启用 AI** |
+| `PAPER_LLM_BASE_URL` / `PAPER_LLM_MODEL` | 日后启用 AI 时再配置对应接口与模型 |
 
-构建命令为 `pip install -r services/paper_api/requirements.txt`，启动命令为 `python -m services.paper_api.cloud`。启动器先初始化数据库，再启动 API 和 Worker；任一进程异常退出时结束另一个进程，让 Render 重启服务。端口读取平台的 `PORT`，健康检查为 `/api/health`。
+云端不需要 `PAPER_API_URL`；根服务路由直接处理同源 API。Supabase 使用哪个账号不取决于浏览器登录账号，而由每个项目的上述 URL 和密钥决定。MCP 授权仅供开发管理，不替代运行时凭据。
 
-SQLite、PDF、任务、译文和对话都保存在同一持久目录。不要创建分别挂载磁盘的 API 与 Worker 服务；Render 的一块磁盘只能被单个服务实例使用。此版本也不支持多副本。部署重启后未完成任务按持久租约重新执行，正在运行的任务最多等待现有 10 分钟租约到期。
+## 首次部署与后续更新
 
-## 前端：Vercel
+1. 在目标 Supabase 项目应用 `supabase/migrations/20261016102651_paper_loop_cloud.sql`，创建私有数据表和 Storage bucket。
+2. 在 Supabase Vault 安全写入 `paper_loop_worker_secret`，与 Vercel 对应变量一致。不要把密钥写进 SQL 迁移文件或提交记录。
+3. 配置上述环境变量，从仓库根目录部署：
 
-项目设置：Framework 为 Next.js，Root Directory 为 `site`，Node.js 为 24.x。`site/vercel.json` 固定安装和构建命令。
+   ```sh
+   npx vercel@64.0.2 deploy --prod
+   ```
 
-后端健康检查通过后，在 Vercel 设置服务端环境变量 `PAPER_API_URL=https://你的论文服务域名`，重新部署。配置在构建时生成 `/api/*` 到后端的同源转发；不使用 `NEXT_PUBLIC_` 前缀。Vercel 模式拒绝本机 HTTP 后端地址。生产域名和自定义域名都需要加入后端 `PAPER_PUBLIC_ORIGINS`，预览域名需逐个加入。
+4. 确认 `/api/health` 返回 `{"status":"ok"}` 后，应用 `supabase/migrations/20261016104140_paper_loop_dispatch.sql`。其中目标域名固定为当前网站；换域名时先修改、审核并迁移调度函数。
+5. 后续推送 `main` 由 Git 集成自动部署。检查 Vercel 的 Git commit SHA 和 READY 状态，再验证实际请求。
 
-没有设置云后端时，经典栏目仍可访问，工作台明确显示“准备中”并停止导入；私人接口返回 503。这个状态只用于逐步上线，不能作为完整后端部署成功的依据。
+`.vercelignore` 只上传网站与服务源代码，排除本地状态、PDF、环境文件、测试与 Git 历史。Python 云运行时使用 3.13，服务运行依赖在 `services/requirements.txt`；修改依赖时同步 `services/paper_api/requirements.txt`。
 
-`.vercelignore` 限制 CLI 上传到网站源文件；`.env`、`data/`、`state/`、本地模型配置与 Git 历史均不应上传。
+## 验收与运维
 
-## 上线检查与回滚
+检查经典栏目、上传小 PDF 和超过 4.5 MB 的 PDF、自动解析、原文读取、页码恢复、两个匿名会话隔离及删除。AI 未启用时必须明确提示，不生成模拟译文或对话。真实模型启用后再进行 30 题质量验收。
 
-1. 访问首页、时间线和任一经典详情页，检查静态文章内容。
-2. 确认网站 `/api/health` 返回 `status: ok`，`/api/session` 能设置 Secure / HttpOnly Cookie。
-3. 上传文字型 PDF，确认任务由 Worker 完成、PDF 可阅读；分别验证小文件及接近 30 MB 的文件经过 Vercel 入口后的上传限制。
-4. 用两个浏览器会话验证论文归属隔离；刷新和重启后端后检查历史恢复，再验证删除清理。
-5. 配置模型后验证翻译、引用定位与至少 30 个固定问题；未完成实测前不宣称模型质量验收通过。
+检查 `cron.job` 的 `paper-loop-worker`、`net._http_response` 的响应状态及 Vercel 运行日志，勿输出鉴权请求头。工作台删除与到期清理将文件写入持久删除队列；Storage 暂时不可用时保留队列，下一次唤醒重试。私人内容 30 天、聚合统计 180 天；如另启备份，应对备份制定同等保留与删除策略。
 
-前端可在 Vercel 回滚到上一个成功部署。后端可重新部署前一个 Git 提交，保留磁盘；代码回滚不会撤销数据变化。备份需覆盖 SQLite 一致性快照与私有 PDF，遵守 30 天私人数据保留期限；平台磁盘快照也需纳入保留与删除策略。
+Vercel 可回滚代码部署；数据库迁移不会随代码回滚。暂停后台调用时先 `cron.unschedule('paper-loop-worker')` 并移除任务唤醒触发器，保留任务数据后再恢复。不要通过关闭 RLS 或公开 bucket 排查故障。
+
+本次不启用付费方案和模型调用，但平台免费额度仍会被数据库、存储和函数使用消耗。`render.yaml` 保留为可选单实例持久磁盘方案，当前未创建或使用 Render 资源。本地 SQLite、独立 Worker 与 Docker Compose 的启动方式见 [运行说明](paper-site.md)。

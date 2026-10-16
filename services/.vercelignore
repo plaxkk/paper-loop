@@ -1,0 +1,7 @@
+.env*
+**/__pycache__/
+**/tests/
+**/*.sqlite3*
+**/*.pdf
+state/
+.venv/

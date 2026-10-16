@@ -89,6 +89,10 @@ def analyze(settings, blocks, heartbeat=lambda: None):
     result, metrics = call(settings, '''生成论文概览。返回 {"question":"研究问题", "method":"核心方法", "results":"实验结论及条件", "limitations":"局限与未证明的内容", "claims":[{"title":"重要论点", "explanation":"中文解释及为什么重要", "category":"问题定义/关键方法/实验结果/局限", "citations":["原文块id"]}]}。claims 3至7条，每条必须有原文依据。不要把背景说明写成论文结论。''', source)
     for key in totals:
         totals[key] += metrics[key]
+    return overview_result(result, blocks), totals
+
+
+def overview_result(result, blocks):
     claims = []
     for claim in result.get("claims", []):
         if not isinstance(claim, dict):
@@ -98,7 +102,7 @@ def analyze(settings, blocks, heartbeat=lambda: None):
             claims.append({"title": claim["title"], "explanation": claim["explanation"], "category": claim.get("category", "关键方法"), "citations": refs})
     if len(claims) < 3:
         raise ModelError("模型没有返回至少 3 条有依据的论点，请重试。")
-    return {**{k: str(result.get(k, "依据不足")) for k in ("question", "method", "results", "limitations")}, "claims": claims[:7]}, totals
+    return {**{k: str(result.get(k, "依据不足")) for k in ("question", "method", "results", "limitations")}, "claims": claims[:7]}
 
 
 def retrieve(blocks, question, selected, overview):

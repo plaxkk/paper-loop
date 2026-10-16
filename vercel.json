@@ -1,0 +1,36 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "site": {
+      "root": "site",
+      "framework": "nextjs",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build"
+    },
+    "paper_api": {
+      "root": "services",
+      "framework": "fastapi",
+      "entrypoint": "app:app",
+      "functions": {
+        "app.py": {
+          "maxDuration": 300,
+          "excludeFiles": "**/tests/**"
+        }
+      }
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "paper_api"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "site"
+      }
+    }
+  ]
+}

@@ -20,6 +20,11 @@ def encode(value):
 
 @contextmanager
 def connection(settings, write=False):
+    if settings.database_url:
+        from .postgres import connect
+        with connect(settings, write) as db:
+            yield db
+        return
     db = sqlite3.connect(settings.database, timeout=30)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
@@ -38,6 +43,13 @@ def connection(settings, write=False):
 def initialize(settings):
     settings.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     (settings.data_dir / "files").mkdir(exist_ok=True, mode=0o700)
+    if settings.serverless and (not settings.database_url or not settings.supabase_url or not settings.storage_key):
+        raise RuntimeError("Cloud database and private storage must be configured before enabling the service.")
+    if settings.database_url:
+        with connection(settings) as db:
+            if not db.execute("SELECT to_regclass('paper_loop.workspaces')").fetchone()[0]:
+                raise RuntimeError("Apply the Paper Loop database migration before starting the API.")
+        return
     with connection(settings) as db:
         db.execute("PRAGMA journal_mode=WAL")
         db.executescript("""
@@ -54,7 +66,7 @@ def initialize(settings):
           kind TEXT NOT NULL, payload TEXT NOT NULL, cache_key TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'queued', result TEXT, error TEXT,
           created REAL NOT NULL, lease REAL, claim TEXT,
-          UNIQUE(workspace,cache_key));
+          checkpoint TEXT NOT NULL DEFAULT '{}', UNIQUE(workspace,cache_key));
         CREATE INDEX IF NOT EXISTS jobs_queue ON jobs(status,created);
         CREATE TABLE IF NOT EXISTS messages(
           id TEXT PRIMARY KEY, workspace TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -67,10 +79,14 @@ def initialize(settings):
         CREATE TABLE IF NOT EXISTS quota(
           owner TEXT NOT NULL, day TEXT NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL,
           PRIMARY KEY(owner,day,kind));
+        CREATE TABLE IF NOT EXISTS maintenance(name TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS file_deletions(id TEXT PRIMARY KEY, created REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS aggregates(
           day TEXT NOT NULL, kind TEXT NOT NULL, category TEXT NOT NULL, value REAL NOT NULL,
           PRIMARY KEY(day,kind,category));
         """)
+        if "checkpoint" not in {r[1] for r in db.execute("PRAGMA table_info(jobs)")}:
+            db.execute("ALTER TABLE jobs ADD COLUMN checkpoint TEXT NOT NULL DEFAULT '{}'")
 
 
 def event(db, owner, workspace, kind, category="", value=1):

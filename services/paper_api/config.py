@@ -5,7 +5,13 @@ from pathlib import Path
 
 @dataclass
 class Settings:
-    data_dir: Path = field(default_factory=lambda: Path(os.getenv("PAPER_API_DATA_DIR", "state/paper-api")).resolve())
+    data_dir: Path = field(default_factory=lambda: Path(os.getenv("PAPER_API_DATA_DIR", "/tmp/paper-loop" if os.getenv("VERCEL") else "state/paper-api")).resolve())
+    database_url: str = field(default_factory=lambda: os.getenv("PAPER_DATABASE_URL", ""))
+    supabase_url: str = field(default_factory=lambda: os.getenv("PAPER_SUPABASE_URL", ""))
+    storage_key: str = field(default_factory=lambda: os.getenv("PAPER_SUPABASE_SECRET_KEY", ""))
+    storage_bucket: str = "paper-pdfs"
+    serverless: bool = field(default_factory=lambda: os.getenv("PAPER_SERVERLESS", "false").lower() == "true")
+    worker_secret: str = field(default_factory=lambda: os.getenv("PAPER_WORKER_SECRET", ""))
     api_key: str = field(default_factory=lambda: os.getenv("PAPER_LLM_API_KEY", ""))
     base_url: str = field(default_factory=lambda: os.getenv("PAPER_LLM_BASE_URL", "https://api.deepseek.com/v1"))
     model: str = field(default_factory=lambda: os.getenv("PAPER_LLM_MODEL", "deepseek-chat"))

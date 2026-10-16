@@ -26,11 +26,13 @@
 
 本地 API 和 Worker 已启动；网站可在 site/ 执行 npm run start 恢复。
 
-## 云部署适配验证
+## 云部署与迁移验证（2026-10-16）
 
-- 141 项后端与原项目测试通过，包含云启动器转发 SIGTERM 和任一子进程退出后清理另一进程。
-- Vercel 模式生产构建和线上生产部署成功，未配置云后端时工作台明确关闭导入；完整云后端验收待完成。
-- Node.js 类型检查通过；npm 离线审计返回 0 告警。
-
-- GitHub main 已推送提交 `17a3035`，Vercel 的 Git 集成自动部署该提交并标记 READY / PROMOTED。
-- 本机浏览器访问生产域名返回 ERR_CONNECTION_CLOSED，curl 的 TLS 握手也失败，外部抓取工具无法访问。尚未取得线上页面或上传交互的浏览器验收结果；不把平台 READY 状态等同于完整端到端验收。
+- SQLite 模式论文服务 63 项、原项目 84 项测试通过，共 147 项。
+- 隔离的本地 PostgreSQL 实例运行 61 项服务与 Serverless 测试通过，覆盖配额、归属、级联删除、任务租约、上传校验、删除队列和翻译检查点；2 项单机进程启动器测试单独在 SQLite 套件中通过。
+- TypeScript 检查与 Next.js 生产构建通过。单个 Vercel 项目的 Next.js + FastAPI Services 构建成功并推广到生产域名。
+- 新 Supabase 项目已应用私有数据迁移，9 张表开启 RLS、anon 无 SELECT 权限，PDF bucket 为私有。未创建付费资源，未启用 AI。
+- 独立 `paper-loop-api` 项目已暂停；部署入口统一为 `paper-loop`。
+- **当前阻塞**：生产 API 从 Supabase 收到数据库密码认证失败，需在 `paper-loop` 更新正确的 `PAPER_DATABASE_URL` 后重新部署。已修正原 URL 中未编码的特殊字符；修正 URL 格式不等于密码验证通过。
+- 后台调度已获用户授权，迁移文件已准备；待数据库连通后安装并验证。真实 Storage 上传、大文件直传、云端自动解析和删除尚未完成验收，不以 Vercel READY 代替端到端验证。
+- 本机浏览器访问生产域名曾遇到连接失败，平台 CLI 可取得实际运行错误；尚未取得云端浏览器完整流程的验收结果。

@@ -2,7 +2,7 @@
 
 网站在 `site/`；独立论文服务在 `services/paper_api/`。原有 Python 流水线与本地配置没有迁移。网站不会读取或发布 `data/` 中的私人文章、账号信息和运营数据。
 
-云端部署见 [Vercel + Render 部署说明](deployment.md)。
+云端部署见 [单项目 Vercel + Supabase 部署说明](deployment.md)。
 
 ## 本地运行
 
@@ -69,7 +69,7 @@ docker compose up --build -d
 - 上传以文件哈希在同一会话内去重；arXiv 支持编号、HTTPS 摘要页/PDF 地址，固定下载版本。无版本的相同导入在本会话内恢复已有工作台；读取新版本可明确输入 `vN`。
 - 模型返回的引用必须是当前论文的原文块 ID。模型引用有效不代表结论正确，需人工核对语义。
 - 长文按块分批生成摘要；问答对整篇正文及附录打分检索。当前采用关键词、中文领域词映射和已有论点引用加权，不是完整语义检索系统。
-- 任务存储在 SQLite WAL，Worker 原子认领并续租；中途崩溃后租约到期可恢复。远程调用结束时再检查任务归属，避免删除后写回。
+- 本地任务存储在 SQLite WAL；云端存储在 Supabase PostgreSQL，由专用鉴权的 Vercel 函数执行。Worker 原子认领并续租；中途崩溃后租约到期可恢复。远程调用结束时再检查任务归属，避免删除后写回。
 - 每个匿名会话每天 3 次新导入、50 次主动 AI 操作（失败重试也占额度），UTC 零点重置。缓存结果和重复请求不重复扣次数。删除历史不重置配额。
 - 默认全站每天 5000 次 AI 操作，导入上限为其五分之一；可通过 `PAPER_GLOBAL_DAILY_ACTIONS` 调整。单次分析可能包含多次模型调用，这不是金额级硬预算。
 - Compose 网关额外按来源 IP 限速，访问日志关闭；本地裸 API 只应绑定回环地址。限额不能彻底阻止重置 Cookie，需要实际流量后再决定更强的滥用防护。
@@ -89,6 +89,7 @@ python3 -m services.paper_api.analytics --cleanup
 ## 验证
 
 ```sh
+pip install -r services/paper_api/requirements-dev.txt
 python3 -m pytest services/paper_api/tests tests -q
 cd site
 npm run typecheck

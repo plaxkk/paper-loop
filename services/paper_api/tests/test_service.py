@@ -1,3 +1,4 @@
+import os
 import json
 import time
 import fitz
@@ -16,7 +17,15 @@ from services.paper_api import llm
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(data_dir=tmp_path, api_key="test-only-not-a-real-key")
+    settings = Settings(data_dir=tmp_path, api_key="test-only-not-a-real-key", database_url=os.getenv("PAPER_TEST_DATABASE_URL", ""))
+    if settings.database_url:
+        import psycopg
+        from psycopg.conninfo import conninfo_to_dict
+        # This fixture resets its schema; never run it against a hosted project.
+        assert conninfo_to_dict(settings.database_url).get("host") in {"127.0.0.1", "localhost", "::1"}, "Use an isolated local PostgreSQL test instance."
+        with psycopg.connect(settings.database_url) as db:
+            db.execute("TRUNCATE paper_loop.sessions,paper_loop.workspaces,paper_loop.jobs,paper_loop.messages,paper_loop.events,paper_loop.quota,paper_loop.aggregates,paper_loop.maintenance,paper_loop.file_deletions CASCADE")
+    return settings
 
 
 @pytest.fixture

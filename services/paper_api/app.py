@@ -1,22 +1,31 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
+import hmac
 import json
 import secrets
 import time
 from pathlib import Path
 from typing import Literal
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from .config import Settings
 from .db import connection, initialize, digest, uid, encode, enqueue, event
 from .analytics import delete_workspaces
 from .sources import arxiv_id, CLASSIC_SOURCES
 from .pdf import PaperError
+from .storage import StorageError
 
 
 COOKIE = "paper_loop_session"
+
+
+class UploadTicket(BaseModel):
+    filename: str = Field(max_length=220)
+    size: int = Field(gt=0, le=30 * 1024 * 1024)
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    consent: bool = False
 
 
 class Action(BaseModel):
@@ -69,9 +78,13 @@ def create_app(settings=None):
     app = FastAPI(title="Paper Loop API", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings
 
+    @app.exception_handler(StorageError)
+    async def storage_failure(_request, exc):
+        return JSONResponse({"detail": str(exc)}, status_code=502)
+
     @app.middleware("http")
     async def privacy(request, call_next):
-        if request.url.path == "/api/health":
+        if request.url.path in {"/api/health", "/api/internal/tick"}:
             return await call_next(request)
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             try:
@@ -108,7 +121,26 @@ def create_app(settings=None):
 
     @app.get("/api/health")
     def health():
+        with connection(settings) as db:
+            db.execute("SELECT 1").fetchone()
         return {"status": "ok"}
+
+    @app.post("/api/internal/tick")
+    def tick(request: Request):
+        supplied = request.headers.get("authorization", "")
+        if not settings.serverless or len(settings.worker_secret) < 32 or not hmac.compare_digest(supplied, "Bearer " + settings.worker_secret):
+            raise HTTPException(404, "Not found")
+        from .worker import run_once
+        from .analytics import cleanup, drain_files
+        # Cleanup is elected once per hour in Postgres, independent of browser activity.
+        with connection(settings, True) as db:
+            hour = str(int(time.time() // 3600))
+            elected = db.execute("INSERT INTO maintenance VALUES('cleanup',?) ON CONFLICT(name) DO UPDATE SET value=excluded.value WHERE maintenance.value<excluded.value RETURNING value", (hour,)).fetchone()
+        if elected:
+            cleanup(settings)
+        else:
+            drain_files(settings)
+        return {"processed": run_once(settings)}
 
     @app.get("/api/session")
     def session(request: Request):
@@ -118,10 +150,45 @@ def create_app(settings=None):
             visited = db.execute("SELECT 1 FROM events WHERE owner=? AND kind='visit' AND date(created,'unixepoch')=?", (request.state.owner, day)).fetchone()
             if not visited:
                 event(db, request.state.owner, None, "visit")
-        return {"ai_available": bool(settings.api_key), "retention_days": settings.retention_days, "remaining_imports": max(0, settings.daily_imports - quota.get("import", 0)), "remaining_actions": max(0, settings.daily_actions - quota.get("action", 0))}
+        return {"direct_upload": bool(settings.supabase_url), "ai_available": bool(settings.api_key), "retention_days": settings.retention_days, "remaining_imports": max(0, settings.daily_imports - quota.get("import", 0)), "remaining_actions": max(0, settings.daily_actions - quota.get("action", 0))}
+
+    @app.post("/api/uploads")
+    def upload_ticket(value: UploadTicket, request: Request):
+        if not settings.supabase_url:
+            raise HTTPException(404, "当前服务不使用直传。")
+        if not value.consent:
+            raise HTTPException(400, "请先确认数据保存与需求分析说明。")
+        if not value.filename.lower().endswith(".pdf"):
+            raise HTTPException(400, "请选择 PDF 文件。")
+        with connection(settings, True) as db:
+            row = db.execute("SELECT id,status FROM workspaces WHERE owner=? AND source_key=?", (request.state.owner, "sha256:" + value.sha256)).fetchone()
+            if row:
+                identifier = row["id"]
+                uploading = row["status"] == "uploading"
+            else:
+                consume(db, settings, request.state.owner, "import")
+                identifier, uploading = uid(), True
+                db.execute("INSERT INTO workspaces(id,owner,title,source_key,source,status,created) VALUES(?,?,?,?,?,'uploading',?)", (identifier, request.state.owner, Path(value.filename).name, "sha256:" + value.sha256, "upload", time.time()))
+                event(db, request.state.owner, identifier, "import_started", "upload")
+        from .storage import Storage
+        return {"workspace_id": identifier, "upload_url": Storage(settings).signed_upload(identifier) if uploading and not Storage(settings).exists(identifier) else None}
+
+    @app.post("/api/uploads/{identifier}/complete")
+    def complete_upload(identifier: str, request: Request):
+        with connection(settings, True) as db:
+            row = workspace_for(db, identifier, request.state.owner)
+            if row["status"] == "uploading":
+                db.execute("UPDATE workspaces SET status='queued',filename=? WHERE id=?", (identifier + ".pdf", identifier))
+                job = enqueue(db, identifier, "import", {}, "import")
+            else:
+                prior = db.execute("SELECT id FROM jobs WHERE workspace=? AND kind='import'", (identifier,)).fetchone()
+                job = prior[0] if prior else None
+        return {"workspace_id": identifier, "job_id": job}
 
     @app.post("/api/imports")
     async def import_paper(request: Request, file: UploadFile | None = File(default=None), arxiv: str = Form(default=""), classic: str = Form(default=""), consent: bool = Form(default=False)):
+        if settings.serverless and file:
+            raise HTTPException(413, "请使用私有存储直传上传 PDF。")
         if not consent:
             raise HTTPException(400, "请先确认数据保存与需求分析说明。")
         if sum([bool(file), bool(arxiv.strip()), bool(classic)]) != 1:
@@ -187,6 +254,8 @@ def create_app(settings=None):
         with connection(settings, True) as db:
             count = delete_workspaces(db, settings, owner=request.state.owner)
             db.execute("DELETE FROM events WHERE owner=?", (request.state.owner,))
+        from .analytics import drain_files
+        drain_files(settings)
         return {"deleted": count}
 
     @app.get("/api/workspaces/{identifier}")
@@ -201,6 +270,9 @@ def create_app(settings=None):
     def pdf(identifier: str, request: Request):
         with connection(settings) as db:
             row = workspace_for(db, identifier, request.state.owner)
+        if settings.supabase_url and row["filename"]:
+            from .storage import Storage
+            return RedirectResponse(Storage(settings).signed_download(identifier), status_code=307, headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"})
         path = settings.data_dir / "files" / f"{identifier}.pdf"
         if not row["filename"] or not path.is_file():
             raise HTTPException(404, "PDF 尚未准备好。")
@@ -211,6 +283,8 @@ def create_app(settings=None):
         with connection(settings, True) as db:
             workspace_for(db, identifier, request.state.owner)
             delete_workspaces(db, settings, owner=request.state.owner, workspace=identifier)
+        from .analytics import drain_files
+        drain_files(settings)
         return {"deleted": True}
 
     @app.patch("/api/workspaces/{identifier}/progress")

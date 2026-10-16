@@ -1,6 +1,8 @@
 """Run with python -m services.paper_api.worker; persistent leases survive restarts."""
 import json
 import signal
+import tempfile
+import hashlib
 import time
 from pathlib import Path
 from .config import Settings
@@ -29,7 +31,16 @@ def heartbeat(settings, job):
 
 
 def execute(settings, job):
+    if settings.supabase_url:
+        with tempfile.TemporaryDirectory(prefix="paper-job-", dir=settings.data_dir) as scratch:
+            return _execute(settings, job, Path(scratch) / "paper.pdf")
+    return _execute(settings, job)
+
+
+def _execute(settings, job, scratch=None):
     with connection(settings) as db:
+        if not db.execute("SELECT id FROM jobs WHERE id=? AND claim=? AND status='running'", (job["id"], job["claim"])).fetchone():
+            return
         row = db.execute("SELECT * FROM workspaces WHERE id=?", (job["workspace"],)).fetchone()
         if not row:
             return
@@ -37,10 +48,15 @@ def execute(settings, job):
         history = [dict(r) for r in db.execute("SELECT role,content FROM messages WHERE workspace=? ORDER BY created DESC LIMIT 10", (workspace["id"],))][::-1]
     payload = json.loads(job["payload"])
     metrics = {}
-    path = settings.data_dir / "files" / f"{workspace['id']}.pdf"
+    path = scratch or settings.data_dir / "files" / f"{workspace['id']}.pdf"
     try:
         if job["kind"] == "import":
             version = None
+            if settings.supabase_url and workspace["source"] == "upload":
+                from .storage import Storage
+                Storage(settings).download(workspace["id"], path)
+                if "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest() != workspace["source_key"]:
+                    raise PaperError("上传文件校验失败，请删除这条记录后重新上传。")
             if workspace["source"] == "arxiv":
                 version = download_arxiv(payload["arxiv_id"], path, settings.max_bytes)
             elif workspace["source"] == "classic":
@@ -50,9 +66,17 @@ def execute(settings, job):
                 db.execute("UPDATE workspaces SET status='parsing' WHERE id=?", (workspace["id"],))
             result = extract(path, settings.max_pages)
             result["version"] = version
+            if settings.supabase_url and workspace["source"] != "upload":
+                from .storage import Storage
+                Storage(settings).upload(workspace["id"], path)
         else:
             blocks = json.loads(workspace["blocks"])
-            if job["kind"] == "analyze":
+            if settings.serverless and job["kind"] in {"analyze", "translate"}:
+                from .steps import advance
+                result, metrics = advance(settings, job, blocks, payload)
+                if result is None:
+                    return
+            elif job["kind"] == "analyze":
                 result, metrics = llm.analyze(settings, blocks, lambda: heartbeat(settings, job))
             elif job["kind"] == "translate":
                 chosen = [b for b in blocks if b["id"] in payload["block_ids"]]
@@ -122,6 +146,9 @@ def execute(settings, job):
             exists = db.execute("SELECT 1 FROM workspaces WHERE id=?", (workspace["id"],)).fetchone()
         if not exists:
             path.unlink(missing_ok=True)
+            if settings.supabase_url:
+                with connection(settings, True) as db:
+                    db.execute("INSERT INTO file_deletions VALUES(?,?) ON CONFLICT(id) DO NOTHING", (workspace["id"], time.time()))
 
 
 def run_once(settings):

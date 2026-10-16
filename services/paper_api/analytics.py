@@ -22,6 +22,8 @@ def delete_workspaces(db, settings, owner=None, workspace=None, before=None):
     # FK cascades also remove jobs, blocking any late worker completion from writing back.
     db.execute("DELETE FROM workspaces WHERE " + where, values)
     for identifier in ids:
+        if settings.supabase_url:
+            db.execute("INSERT INTO file_deletions VALUES(?,?) ON CONFLICT(id) DO NOTHING", (identifier, time.time()))
         (settings.data_dir / "files" / f"{identifier}.pdf").unlink(missing_ok=True)
     return len(ids)
 
@@ -49,15 +51,31 @@ def cleanup(settings):
     for path in (settings.data_dir / "files").glob("*"):
         if path.name not in files and path.stat().st_mtime < now - settings.lease_seconds:
             path.unlink(missing_ok=True)
+    drain_files(settings)
     return deleted
+
+
+def drain_files(settings):
+    if not settings.supabase_url:
+        return
+    from .storage import Storage, StorageError
+    with connection(settings) as db:
+        ids = [r[0] for r in db.execute("SELECT id FROM file_deletions ORDER BY created LIMIT 3")]
+    for identifier in ids:
+        try:
+            Storage(settings).remove(identifier)
+        except StorageError:
+            continue  # Durable outbox retries at the next cron tick.
+        with connection(settings, True) as db:
+            db.execute("DELETE FROM file_deletions WHERE id=?", (identifier,))
 
 
 def report(settings):
     with connection(settings) as db:
         counts = db.execute("""SELECT day,kind,category,sum(value) AS value FROM (
-          SELECT date(created,'unixepoch') day,kind,category,value FROM events
+          SELECT date(created,'unixepoch') AS day,kind,category,value FROM events
           UNION ALL SELECT day,kind,category,value FROM aggregates
-          ) GROUP BY day,kind,category ORDER BY day DESC,kind""").fetchall()
+          ) AS combined GROUP BY day,kind,category ORDER BY day DESC,kind""").fetchall()
         summary = {}
         for row in counts:
             summary[row["kind"]] = summary.get(row["kind"], 0) + row["value"]

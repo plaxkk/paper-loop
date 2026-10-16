@@ -8,7 +8,7 @@
 
 ## 网站 MVP
 
-在线访问：[paper-loop-xi.vercel.app](https://paper-loop-xi.vercel.app)。经典栏目已上线；论文工作台需连接持久化云后端后开放。
+在线访问：[paper-loop-xi.vercel.app](https://paper-loop-xi.vercel.app)。前端与论文 API 使用同一个 Vercel 项目 `paper-loop`，数据库与私有 PDF 存放在 Supabase；AI 按当前配置暂未启用。
 
 | 栏目 | 已实现能力 |
 |---|---|
@@ -19,7 +19,7 @@
 首批 12 篇解读是**待人工审校的编辑初稿**。AI 功能需要后端配置模型密钥；未配置时仅提供 PDF 原文阅读，并明确提示状态。文字型 PDF 上限 30 MB、100 页，暂不支持扫描件 OCR、图表视觉解释或译文 PDF 导出。
 
 - [本地启动与维护](docs/paper-site.md)
-- [云端部署：Vercel + 持久化论文服务](docs/deployment.md)
+- [云端部署：单个 Vercel 项目 + Supabase](docs/deployment.md)
 - [验收记录与尚未完成的检查](docs/paper-site-verification.md)
 
 ### 本地快速启动
@@ -35,7 +35,9 @@ cd site && npm ci
 
 ### 网站架构与数据
 
-浏览器 → Next.js（Vercel）→ FastAPI + 独立 Worker 进程 → SQLite WAL / 私有 PDF 持久卷。模型调用只在后端发生，密钥不进入浏览器。Render 部署将两个后端进程运行在同一实例中，共享一块持久磁盘；Compose 本地部署使用独立容器。
+云端：浏览器 → 单个 Vercel 项目（Next.js + FastAPI Services）→ Supabase PostgreSQL / 私有 Storage。Supabase 的任务触发器与每分钟兜底检查通过专用鉴权唤醒同项目的后台任务接口；长篇 AI 任务按步骤保存检查点。Vercel Services 当前为 Beta。模型调用只在后端发生，密钥不进入浏览器。
+
+本地：Next.js → FastAPI + 独立 Worker → SQLite WAL / 私有文件目录；Docker Compose 使用独立容器和共享持久卷。
 
 匿名会话通过 HttpOnly Cookie 识别。论文、对话和阅读记录保留 30 天，去标识聚合指标保留 180 天；清除 Cookie 后无法自动恢复旧历史。每个匿名会话每天最多导入 3 篇论文、执行 50 次主动 AI 操作，另有全站限额。用户上传内容不会进入经典栏目。
 
@@ -306,7 +308,9 @@ paper-loop/
 ├── site/                  # Next.js 网站、经典内容、PDF 阅读组件
 ├── services/paper_api/    # FastAPI、持久任务 Worker、隐私与分析
 ├── docs/                  # 运行、部署与验收记录
-├── render.yaml            # 云端持久化后端配置（付费资源）
+├── vercel.json            # 单项目 Next.js + FastAPI 服务路由
+├── supabase/migrations/   # 私有数据库、Storage 与任务唤醒
+├── render.yaml            # 可选持久磁盘部署方案，当前未使用
 ├── compose.yaml           # 本地 / 单机容器部署
 ├── pipeline/              # 核心流水线
 │   └── run.py             # CLI 入口

@@ -1,6 +1,8 @@
 # Deploy only website source. Never upload runtime data, local settings or Git history.
 /*
 !site
+!services
+!vercel.json
 site/node_modules/
 site/.next/
 site/.vercel/
@@ -10,3 +12,8 @@ site/test-results/
 site/playwright-report/
 site/*.tsbuildinfo
 site/tests/
+services/**/__pycache__/
+services/**/tests/
+services/.env*
+services/**/*.sqlite3*
+services/**/*.pdf
