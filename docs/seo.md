@@ -43,10 +43,10 @@ python3 scripts/submit_indexnow.py
 | Google 首页手动索引请求 | 已尝试，但平台提示今日每日配额已用完，未完成手动优先入队；不影响 sitemap 提交。检查时首页尚未收录。后续可在配额恢复后重试。 |
 | Bing Webmaster Tools | HTML 标签验证成功；地图已提交，状态 Processing，等待抓取。 |
 | IndexNow | 官方端点 `https://api.indexnow.org/indexnow` 返回 HTTP 202，接收 17 个公开网址。由协议通知参与的搜索引擎，包括 Bing、Yandex 等；不声称每个引擎均已单独验证或收录。Python TLS 连接异常后使用 curl 正常 TLS 提交成功。 |
-| Naver Search Advisor | 已创建网站并部署验证标记，等待用户完成图形验证码；尚未提交地图。 |
+| Naver Search Advisor | 用户完成人工验证码后，网站所有权验证通过；`sitemap.xml` 已显示在已提交列表，提交日期 2026-10-17。 |
 | 百度 | 用户明确不纳入本次范围。 |
 
-本地生产构建与 `python3 scripts/check_seo.py` 通过。线上 HTTP 验证 sitemap 为 200、17 个网址；robots 为 200 并引用规范地图；文章为 index；DPO 初稿与历史为 noindex；带 arXiv 查询参数的工作台 canonical 指向 `/workspace`。Chrome 核对文章可见署名、文章日期、论文年份、原文和导航。
+本地生产构建与 `python3 scripts/check_seo.py` 通过。线上 HTTP 验证 sitemap 为 200、17 个网址；robots 为 200 并引用规范地图；文章为 index；DPO 初稿与历史为 noindex；带 arXiv 查询参数的工作台 canonical 指向 `/workspace`。全部 17 个生产 sitemap 网页再次逐一核验，均为 HTTP 200，具有自指向 canonical、单一 H1、独立描述及可索引元数据。Chrome 核对文章可见署名、文章日期、论文年份、原文和导航。
 
 “地图已读取”“网址可编入索引”“索引请求已收到”“实际收录”是不同状态。实际收录和排名需由各搜索引擎处理；不要根据本次回执承诺排名、收录数量或日期。
 
