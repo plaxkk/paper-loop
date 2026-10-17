@@ -21,6 +21,7 @@
 - [本地启动与维护](docs/paper-site.md)
 - [云端部署：单个 Vercel 项目 + Supabase](docs/deployment.md)
 - [验收记录与尚未完成的检查](docs/paper-site-verification.md)
+- [SEO 配置、搜索引擎提交与维护](docs/seo.md)
 
 ### 本地快速启动
 
