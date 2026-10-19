@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { Classic } from './classics';
-export const SITE_URL = 'https://paper-loop-xi.vercel.app';
+export const SITE_URL = 'https://paper-loop.kkplayit.online';
 export const SITE_NAME = 'Paper Loop';
 export const absoluteUrl = (path: string) => path === '/' ? SITE_URL : new URL(path, SITE_URL).href;
 export function pageMetadata(title: string, description: string, path: string): Metadata {

@@ -8,7 +8,7 @@
 
 ## 网站 MVP
 
-在线访问：[paper-loop-xi.vercel.app](https://paper-loop-xi.vercel.app)。前端与论文 API 使用同一个 Vercel 项目 `paper-loop`，数据库与私有 PDF 存放在 Supabase；AI 按当前配置暂未启用。
+在线访问：[paper-loop.kkplayit.online](https://paper-loop.kkplayit.online)。前端与论文 API 使用同一个 Vercel 项目 `paper-loop`，数据库与私有 PDF 存放在 Supabase；AI 按当前配置暂未启用。
 
 | 栏目 | 已实现能力 |
 |---|---|

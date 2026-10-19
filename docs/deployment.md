@@ -1,6 +1,6 @@
 # 云端部署：一个 Vercel 项目 + Supabase
 
-网站地址：[paper-loop-xi.vercel.app](https://paper-loop-xi.vercel.app)。GitHub 仓库为 `plaxkk/paper-loop`，生产分支为 `main`。前端和论文 API 都运行在 **`paper-loop` 这一个 Vercel 项目**，不需要另建 `paper-loop-api`。
+网站地址：[paper-loop.kkplayit.online](https://paper-loop.kkplayit.online)。GitHub 仓库为 `plaxkk/paper-loop`，生产分支为 `main`。前端和论文 API 都运行在 **`paper-loop` 这一个 Vercel 项目**，不需要另建 `paper-loop-api`。
 
 ## 服务结构
 
@@ -25,7 +25,7 @@
 | `PAPER_SUPABASE_SECRET_KEY` | 同项目后端 Secret key，标记 Sensitive，绝不使用 `NEXT_PUBLIC_` 前缀 |
 | `PAPER_SERVERLESS` | `true` |
 | `PAPER_SECURE_COOKIE` | `true` |
-| `PAPER_PUBLIC_ORIGINS` | `https://paper-loop-xi.vercel.app`；新增自定义域名时追加完整 Origin，以逗号分隔 |
+| `PAPER_PUBLIC_ORIGINS` | `https://paper-loop.kkplayit.online,https://paper-loop-xi.vercel.app`，精确校验写入请求的 Origin |
 | `PAPER_WORKER_SECRET` | 随机、至少 32 字符的专用密钥，与 Supabase Vault 的 `paper_loop_worker_secret` 相同 |
 | `PAPER_LLM_API_KEY` | **当前留空，不启用 AI** |
 | `PAPER_LLM_BASE_URL` / `PAPER_LLM_MODEL` | 日后启用 AI 时再配置对应接口与模型 |
@@ -42,7 +42,7 @@
    npx vercel@64.0.2 deploy --prod
    ```
 
-4. 确认 `/api/health` 返回 `{"status":"ok"}` 后，应用 `supabase/migrations/20261016104140_paper_loop_dispatch.sql`。其中目标域名固定为当前网站；换域名时先修改、审核并迁移调度函数。
+4. 确认 `/api/health` 返回 `{"status":"ok"}` 后，应用 `supabase/migrations/20261016104140_paper_loop_dispatch.sql`。调度目标仍为 `https://paper-loop-xi.vercel.app/api/internal/tick`；平台把 `/api/*` 直接路由到 FastAPI，不参与前端页面跳转，因此本次更换生产页面域名无需修改数据库调度或密钥。
 5. 后续推送 `main` 由 Git 集成自动部署。检查 Vercel 的 Git commit SHA 和 READY 状态，再验证实际请求。
 
 `.vercelignore` 只上传网站与服务源代码，排除本地状态、PDF、环境文件、测试与 Git 历史。Python 云运行时使用 3.13，服务运行依赖在 `services/requirements.txt`；修改依赖时同步 `services/paper_api/requirements.txt`。

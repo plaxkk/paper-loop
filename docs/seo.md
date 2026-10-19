@@ -1,6 +1,8 @@
 # 网站 SEO 与搜索引擎提交
 
-生产规范网址：https://paper-loop-xi.vercel.app
+生产规范网址：https://paper-loop.kkplayit.online
+
+2026-10-19：规范域名从 `paper-loop-xi.vercel.app` 切换到 `paper-loop.kkplayit.online`。旧站提交回执如下保留为历史记录，不能视为新域名已验证或已收录。新域名的 canonical、sitemap、分享链接、JSON-LD 与 IndexNow 主机配置同步更新；旧域名前端页面使用 308 跳转并保留路径和查询参数，`/api/*` 继续原路处理后台任务。新域名启用前应完成 DNSPod 解析和 Vercel HTTPS 验证。
 
 ## 已实现
 

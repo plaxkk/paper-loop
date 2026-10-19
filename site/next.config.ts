@@ -3,6 +3,12 @@ const config: NextConfig = {
   ...(process.env.VERCEL ? {} : { output: 'standalone' as const }),
   outputFileTracingIncludes: { '/classics/*': ['./content/classics/**/*.md'] },
   experimental: { proxyClientMaxBodySize: '32mb', proxyTimeout: 120000 },
+  async redirects() {
+    // The platform routes /api/* directly to FastAPI before Next.js. Keep that
+    // origin available for the existing authenticated background dispatcher.
+    return [{ source: '/:path((?!api(?:/|$)).*)', has: [{ type: 'host' as const, value: 'paper-loop-xi.vercel.app' }],
+      destination: 'https://paper-loop.kkplayit.online/:path*', permanent: true }];
+  },
   async rewrites() {
     const backend=process.env.PAPER_API_URL || (process.env.VERCEL ? '' : 'http://127.0.0.1:8000');
     if(backend){

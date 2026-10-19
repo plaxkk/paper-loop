@@ -7,7 +7,7 @@ from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'site/.next/server/app'
-ORIGIN = 'https://paper-loop-xi.vercel.app'
+ORIGIN = 'https://paper-loop.kkplayit.online'
 
 
 class Page(HTMLParser):
