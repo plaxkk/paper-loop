@@ -56,3 +56,11 @@
 Vercel 可回滚代码部署；数据库迁移不会随代码回滚。暂停后台调用时先 `cron.unschedule('paper-loop-worker')` 并移除任务唤醒触发器，保留任务数据后再恢复。不要通过关闭 RLS 或公开 bucket 排查故障。
 
 本次不启用付费方案和模型调用，但平台免费额度仍会被数据库、存储和函数使用消耗。`render.yaml` 保留为可选单实例持久磁盘方案，当前未创建或使用 Render 资源。本地 SQLite、独立 Worker 与 Docker Compose 的启动方式见 [运行说明](paper-site.md)。
+
+## 2026-10-22 域名迁移发布
+
+生产部署 `dpl_HQDnWTrXYHBG36aLNMgGw3z6QobL` 已提升到正式域名。补齐 10 月 19 日准备但未正式启用的 canonical、sitemap、robots 与旧域名 HTTP 308 跳转，并为新域名加入 Naver 的 HTML 所有权验证标签。原 Naver 标签保留，避免旧站验证意外失效。
+
+构建、TypeScript 和 `scripts/check_seo.py` 通过；线上 17 个公开地址、规范链接与新 sitemap 已核对。Google 新地图提交及地址更改已受理，Bing 新地图 Processing，Naver 待人工验证码，状态见 [SEO 记录](seo.md)。
+
+已知独立故障：旧生产构建与本次构建的 `/api/health` 均返回 500；前端域名迁移未改变后端配置。候选检查返回错误时，临时发布命令未停止而继续了 promote；后续发布应先单独核验结果，或使用 `set -e` / `&&` 确保失败阻断。不得把此次公开页面检查通过写成 API 健康检查通过。

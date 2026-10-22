@@ -2,7 +2,7 @@
 
 生产规范网址：https://paper-loop.kkplayit.online
 
-2026-10-19：规范域名从 `paper-loop-xi.vercel.app` 切换到 `paper-loop.kkplayit.online`。旧站提交回执如下保留为历史记录，不能视为新域名已验证或已收录。新域名的 canonical、sitemap、分享链接、JSON-LD 与 IndexNow 主机配置同步更新；旧域名前端页面使用 308 跳转并保留路径和查询参数，`/api/*` 继续原路处理后台任务。新域名启用前应完成 DNSPod 解析和 Vercel HTTPS 验证。
+2026-10-19 准备域名配置，2026-10-22 正式发布并核验：规范域名从 `paper-loop-xi.vercel.app` 切换到 `paper-loop.kkplayit.online`。旧站提交回执如下保留为历史记录，不能视为新域名已验证或已收录。新域名的 canonical、sitemap、分享链接、JSON-LD 与 IndexNow 主机配置同步更新；旧域名前端页面使用 308 跳转并保留路径和查询参数，`/api/*` 继续原路处理后台任务。2026-10-22 已确认新域名 HTTPS 可用；此前 10 月 19 日的提交只是配置准备，不能视为当时线上 sitemap 已完成切换。
 
 ## 已实现
 
@@ -35,7 +35,22 @@ python3 scripts/submit_indexnow.py
 
 新增文章前先检查状态与内容来源；公开文章自动进入下次构建的 sitemap。没有可靠修订日期时省略 lastmod，避免每次构建伪造更新。更换正式域名时同时更新 `site/lib/seo.ts`、IndexNow 主机证明配置、站长平台资源与规范地址，旧域名用 301 重定向。
 
-## 提交记录
+## 新域名迁移与提交（2026-10-22，北京时间）
+
+正式地图：<https://paper-loop.kkplayit.online/sitemap.xml>。
+
+| 平台 | 本次结果 |
+|---|---|
+| Google Search Console | 新 HTTPS URL-prefix 资源通过所有权验证；10 月 22 日重新提交 `/sitemap.xml`，页面显示“已成功提交站点地图”。提交时列表显示成功和 17 个历史已发现网页，上次读取仍为 10 月 19 日；不能声称 Google 已在本次重新抓取全部新 URL。 |
+| Google 地址更改 | 从 `paper-loop-xi.vercel.app` 指向 `paper-loop.kkplayit.online` 的检查通过，已确认迁移。平台显示“此网站当前正在迁移”，请求日期为 2026 年 10 月 22 日。 |
+| Bing Webmaster Tools | 新域名通过 HTML 标签验证；新地图已提交，Known sitemaps 为 1，状态 Processing，等待抓取。 |
+| Naver Search Advisor | 新域名登记完成，新 HTML 标签已发布；所有权验证等待用户完成人工图形验证码，尚未提交新地图，不能记为成功。 |
+
+上线核验：生产部署 `dpl_HQDnWTrXYHBG36aLNMgGw3z6QobL`。全部 17 个地图 URL 返回 HTTP 200、使用新域名并带有自指向 canonical；robots 引用新地图。旧首页和 Transformer 文章均返回 HTTP 308，保留路径跳至新域名。旧站资源保留用于迁移历史和监测，不再主动提交旧域名 URL；没有删除任何站点的历史搜索数据。
+
+本机 VPN DNS 返回合成地址，直接 TLS 连接失败；验证改用 Vercel 接入 IP 与原始 HTTPS 主机名，始终保留证书验证。另发现 `/api/health` 在旧部署 `dpl_Ek449AnqAK3Q3bvHGdcpWmscWVYN` 和新部署均返回 500；这是独立的既有论文服务故障，根因尚未确认。公开页面与 sitemap 全部可用，不据此宣称后端健康。
+
+## 旧域名提交记录
 
 2026-10-17，生产部署 `dpl_HZ5qzeHR6HMxmUb5hZRJzAN71MHG`（代码提交 `aeb3357`）：
 
