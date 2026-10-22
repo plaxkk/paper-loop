@@ -61,10 +61,10 @@ Vercel 可回滚代码部署；数据库迁移不会随代码回滚。暂停后�
 
 生产部署 `dpl_HQDnWTrXYHBG36aLNMgGw3z6QobL` 已提升到正式域名。补齐 10 月 19 日准备但未正式启用的 canonical、sitemap、robots 与旧域名 HTTP 308 跳转，并为新域名加入 Naver 的 HTML 所有权验证标签。原 Naver 标签保留，避免旧站验证意外失效。
 
-构建、TypeScript 和 `scripts/check_seo.py` 通过；线上 17 个公开地址、规范链接与新 sitemap 已核对。Google 新地图提交及地址更改已受理，Bing 新地图 Processing，Naver 待人工验证码，状态见 [SEO 记录](seo.md)。
+构建、TypeScript 和 `scripts/check_seo.py` 通过；线上 17 个公开地址、规范链接与新 sitemap 已核对。Google 新地图提交及地址更改已受理，Bing 新地图 Processing，Naver 新域名验证及地图提交成功，状态见 [SEO 记录](seo.md)。
 
 已知独立故障：旧生产构建与本次构建的 `/api/health` 均返回 500；前端域名迁移未改变后端配置。候选检查返回错误时，临时发布命令未停止而继续了 promote；后续发布应先单独核验结果，或使用 `set -e` / `&&` 确保失败阻断。不得把此次公开页面检查通过写成 API 健康检查通过。
 
 最终整合版本同时保留远端 PR #1 的 `@vercel/analytics` 集成。首次迁移构建遗漏该集成，发现后已合并远端提交并重新构建，后续发布必须以整合版本为准。新 Naver 标签置于同名标签列表首项，旧标签继续保留。
 
-Naver 官方验证文件于 2026-10-22 从误放的 Nestful 目录移到本项目根目录，并将同字节副本放到 `site/public/`。发布提交 `38dd12c`，部署 `dpl_7iJF4qNTYguvLhcatwwupxHte88U` 已 READY 并绑定正式域名。公网验证文件与下载原件逐字节一致，Naver 所有权仍待新验证码与平台结果确认。
+Naver 官方验证文件于 2026-10-22 从误放的 Nestful 目录移到本项目根目录，并将同字节副本放到 `site/public/`。发布提交 `38dd12c`，部署 `dpl_7iJF4qNTYguvLhcatwwupxHte88U` 已 READY 并绑定正式域名。公网验证文件与下载原件逐字节一致。用户完成验证码后，所有权验证通过；新域名 sitemap 已进入提交列表，平台登记时间为 2026-10-22 18:56:09，尚不能据此判断抓取或收录结果。
