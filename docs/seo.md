@@ -44,7 +44,7 @@ python3 scripts/submit_indexnow.py
 | Google Search Console | 新 HTTPS URL-prefix 资源通过所有权验证；10 月 22 日重新提交 `/sitemap.xml`，页面显示“已成功提交站点地图”。提交时列表显示成功和 17 个历史已发现网页，上次读取仍为 10 月 19 日；不能声称 Google 已在本次重新抓取全部新 URL。 |
 | Google 地址更改 | 从 `paper-loop-xi.vercel.app` 指向 `paper-loop.kkplayit.online` 的检查通过，已确认迁移。平台显示“此网站当前正在迁移”，请求日期为 2026 年 10 月 22 日。 |
 | Bing Webmaster Tools | 新域名通过 HTML 标签验证；新地图已提交，Known sitemaps 为 1，状态 Processing，等待抓取。 |
-| Naver Search Advisor | 新域名登记完成，新 HTML 标签已发布；所有权验证等待用户完成人工图形验证码，尚未提交新地图，不能记为成功。 |
+| Naver Search Advisor | 新域名登记完成，新 HTML 标签已发布；另已发布官方文件 `/navere7ed5492aa739d93062a4e32b673ca39.html`，公网 HTTP 200 且与原件字节一致。当前选择 HTML 文件验证，等待本次新验证码完成；尚未提交新地图，不能记为成功。 |
 
 上线核验：生产部署 `dpl_HQDnWTrXYHBG36aLNMgGw3z6QobL`。全部 17 个地图 URL 返回 HTTP 200、使用新域名并带有自指向 canonical；robots 引用新地图。旧首页和 Transformer 文章均返回 HTTP 308，保留路径跳至新域名。旧站资源保留用于迁移历史和监测，不再主动提交旧域名 URL；没有删除任何站点的历史搜索数据。
 
